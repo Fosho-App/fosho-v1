@@ -2,13 +2,16 @@ use crate::{
   constant::*,
   error::FoshoErrors,
   state::*,
-  utils::{get_event_ends_at_from_attributes, get_event_starts_at_from_attributes},
+  utils::{
+    check_if_already_scanned, get_event_ends_at_from_attributes,
+    get_event_starts_at_from_attributes,
+  },
 };
 use anchor_lang::prelude::*;
 
 use mpl_core::{
   accounts::{BaseAssetV1, BaseCollectionV1},
-  fetch_external_plugin_adapter_data_info, fetch_plugin,
+  fetch_plugin,
   instructions::{UpdatePluginV1CpiBuilder, WriteExternalPluginAdapterDataV1CpiBuilder},
   types::{
     Attributes, ExternalPluginAdapterKey, PermanentFreezeDelegate, Plugin, PluginAuthority,
@@ -55,6 +58,7 @@ pub struct VerifyAttendee<'info> {
   )]
   pub ticket: Box<Account<'info, BaseAssetV1>>,
   pub system_program: Program<'info, System>,
+  /// CHECK: This is checked by the ticket constraint
   pub owner: AccountInfo<'info>,
   #[account(mut)]
   pub event_authority: Signer<'info>,
@@ -68,14 +72,15 @@ impl<'info> VerifyAttendee<'info> {
     // just a double check.
     // there could be multiple event_authorities for an event.
     // thus, another verified check is done prior to this.
-    let (_, app_data_length) = fetch_external_plugin_adapter_data_info::<BaseAssetV1>(
-      &self.ticket.to_account_info(),
-      None,
-      &ExternalPluginAdapterKey::AppData(PluginAuthority::Address {
-        address: self.event_authority.key(),
-      }),
-    )?;
-    require!(app_data_length == 0, FoshoErrors::AlreadyScanned);
+
+    // Check each authority for existing scan
+    for authority in &self.event.event_authorities {
+      check_if_already_scanned(self.ticket.to_account_info(), authority)?;
+    }
+    // check if community authority scanned
+    check_if_already_scanned(self.ticket.to_account_info(), &self.community.authority)?;
+
+    // If we get here, no authorities have scanned yet, so we can continue
 
     let (_, collection_attribute_list, _) = fetch_plugin::<BaseCollectionV1, Attributes>(
       &self.event_collection.to_account_info(),
@@ -155,12 +160,17 @@ pub fn verify_attendee_handler(ctx: Context<VerifyAttendee>) -> Result<()> {
     }
   }
 
-  require!(
-    event
-      .event_authorities
-      .contains(&ctx.accounts.event_authority.key()),
-    FoshoErrors::InvalidEventAuthority
-  );
+  let is_community_authority =
+    ctx.accounts.event_authority.key() == ctx.accounts.community.authority;
+
+  if !is_community_authority {
+    require!(
+      event
+        .event_authorities
+        .contains(&ctx.accounts.event_authority.key()),
+      FoshoErrors::InvalidEventAuthority
+    );
+  }
 
   attendee_record.status = AttendeeStatus::Verified;
 

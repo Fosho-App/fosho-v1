@@ -16,7 +16,7 @@ pub struct ClaimRewards<'info> {
     mut,
     has_one = event
   )]
-  pub attendee_record: Account<'info, Attendee>,
+  pub attendee_record: Box<Account<'info, Attendee>>,
   #[account(
     mut,
     seeds = [
@@ -26,7 +26,7 @@ pub struct ClaimRewards<'info> {
     ],
     bump = event.bump,
   )]
-  pub event: Account<'info, Event>,
+  pub event: Box<Account<'info, Event>>,
   #[account(
     seeds = [
       COMMUNITY_PRE_SEED.as_ref(),

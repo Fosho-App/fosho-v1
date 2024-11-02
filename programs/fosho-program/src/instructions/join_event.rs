@@ -33,7 +33,7 @@ pub struct JoinEvent<'info> {
     ],
     bump,
   )]
-  pub attendee_record: Account<'info, Attendee>,
+  pub attendee_record: Box<Account<'info, Attendee>>,
   #[account(
     mut,
     seeds = [
@@ -43,7 +43,7 @@ pub struct JoinEvent<'info> {
     ],
     bump = event.bump,
   )]
-  pub event: Account<'info, Event>,
+  pub event: Box<Account<'info, Event>>,
   #[account(
     seeds = [
       COMMUNITY_PRE_SEED.as_ref(),
@@ -82,7 +82,12 @@ impl<'info> JoinEvent<'info> {
     CpiContext::new(cpi_program, cpi_accounts)
   }
 
-  pub fn create_event_ticket(&self, args: CreateTicketArgs) -> Result<()> {
+  pub fn create_event_ticket(
+    &self,
+    name: String,
+    uri: String,
+    custom_attributes: Option<Vec<(String, String)>>,
+  ) -> Result<()> {
     // Check that the maximum number of tickets has not been reached yet
     let (_, collection_attribute_list, _) = fetch_plugin::<BaseCollectionV1, Attributes>(
       &self.event_collection.to_account_info(),
@@ -126,7 +131,7 @@ impl<'info> JoinEvent<'info> {
     ];
 
     // Add custom attributes
-    if let Some(custom_attrs) = args.custom_attributes {
+    if let Some(custom_attrs) = custom_attributes {
       for (key, value) in custom_attrs {
         attribute_list.push(create_attribute(&key, value));
       }
@@ -148,8 +153,8 @@ impl<'info> JoinEvent<'info> {
       .authority(Some(&self.community.to_account_info()))
       .owner(Some(&self.attendee.to_account_info()))
       .system_program(&self.system_program.to_account_info())
-      .name(args.name)
-      .uri(args.uri)
+      .name(name)
+      .uri(uri)
       .plugins(ticket_plugins.0)
       .external_plugin_adapters(ticket_plugins.1)
       .invoke_signed(&[signer_seeds])?;
@@ -158,14 +163,12 @@ impl<'info> JoinEvent<'info> {
   }
 }
 
-#[derive(AnchorDeserialize, AnchorSerialize, Clone, Default)]
-pub struct CreateTicketArgs {
-  pub name: String,
-  pub uri: String,
-  pub custom_attributes: Option<Vec<(String, String)>>,
-}
-
-pub fn join_event_handler(ctx: Context<JoinEvent>, args: CreateTicketArgs) -> Result<()> {
+pub fn join_event_handler(
+  ctx: Context<JoinEvent>,
+  name: String,
+  uri: String,
+  custom_attributes: Option<Vec<(String, String)>>,
+) -> Result<()> {
   let event = &ctx.accounts.event;
 
   if event.authority_must_sign {
@@ -195,7 +198,9 @@ pub fn join_event_handler(ctx: Context<JoinEvent>, args: CreateTicketArgs) -> Re
   // require_gte!(event.registration_end_time, current_time, FoshoErrors::RegistrationTimeExpired);
   // require_gt!(event.max_attendees, event.current_attendees, FoshoErrors::MaxAttendeesAlreadyJoined);
 
-  ctx.accounts.create_event_ticket(args)?;
+  ctx
+    .accounts
+    .create_event_ticket(name, uri, custom_attributes)?;
 
   if event.commitment_fee.gt(&0) {
     transfer(ctx.accounts.transfer_commitment_fee(), event.commitment_fee)?;

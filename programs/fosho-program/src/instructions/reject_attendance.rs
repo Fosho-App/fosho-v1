@@ -1,9 +1,8 @@
-use crate::{constant::*, error::FoshoErrors, state::*};
+use crate::{constant::*, error::FoshoErrors, state::*, utils::check_if_already_scanned};
 use anchor_lang::prelude::*;
 
 use mpl_core::{
   accounts::{BaseAssetV1, BaseCollectionV1},
-  fetch_external_plugin_adapter_data_info,
   instructions::{UpdatePluginV1CpiBuilder, WriteExternalPluginAdapterDataV1CpiBuilder},
   types::{
     ExternalPluginAdapterKey, PermanentFreezeDelegate, Plugin, PluginAuthority, UpdateAuthority,
@@ -49,6 +48,7 @@ pub struct RejectAttendee<'info> {
   )]
   pub ticket: Box<Account<'info, BaseAssetV1>>,
   pub system_program: Program<'info, System>,
+  /// CHECK: This is checked by the ticket constraint
   pub owner: AccountInfo<'info>,
   #[account(mut)]
   pub event_authority: Signer<'info>,
@@ -62,14 +62,13 @@ impl<'info> RejectAttendee<'info> {
     // just a double check.
     // there could be multiple event_authorities for an event.
     // thus, another verified check is done prior to this.
-    let (_, app_data_length) = fetch_external_plugin_adapter_data_info::<BaseAssetV1>(
-      &self.ticket.to_account_info(),
-      None,
-      &ExternalPluginAdapterKey::AppData(PluginAuthority::Address {
-        address: self.event_authority.key(),
-      }),
-    )?;
-    require!(app_data_length == 0, FoshoErrors::AlreadyScanned);
+
+    // Check each authority for existing scan
+    for authority in &self.event.event_authorities {
+      check_if_already_scanned(self.ticket.to_account_info(), authority)?;
+    }
+    // check if community authority scanned
+    check_if_already_scanned(self.ticket.to_account_info(), &self.community.authority)?;
 
     let data: Vec<u8> = "Rejected".as_bytes().to_vec();
 
@@ -113,6 +112,7 @@ pub fn reject_attendee_handler(ctx: Context<RejectAttendee>) -> Result<()> {
   let event = &ctx.accounts.event;
 
   match attendee_record.status {
+    AttendeeStatus::Pending => {}
     AttendeeStatus::Claimed => {
       return Err(FoshoErrors::AlreadyClaimed.into());
     }
@@ -122,8 +122,6 @@ pub fn reject_attendee_handler(ctx: Context<RejectAttendee>) -> Result<()> {
     AttendeeStatus::Verified => {
       return Err(FoshoErrors::AlreadyScanned.into());
     }
-    // only pending can be rejected
-    _ => {}
   }
 
   let is_community_authority =

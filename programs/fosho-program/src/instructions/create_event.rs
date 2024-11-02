@@ -81,11 +81,27 @@ impl<'info> CreateEvent<'info> {
     CpiContext::new(cpi_program, cpi_accounts)
   }
 
-  pub fn create_event_collection(&self, args: CreateEventArgs) -> Result<()> {
+  pub fn create_event_collection(
+    &self,
+    name: String,
+    uri: String,
+    event_type: EventType,
+    organizer: String,
+    commitment_fee: u64,
+    event_starts_at: Option<i64>,
+    event_ends_at: Option<i64>,
+    registration_starts_at: Option<i64>,
+    registration_ends_at: Option<i64>,
+    capacity: Option<u64>,
+    location: Option<String>,
+    virtual_link: Option<String>,
+    description: Option<String>,
+    custom_attributes: Option<Vec<(String, String)>>,
+  ) -> Result<()> {
     let mut attribute_list = vec![
-      create_attribute("Event Type", format!("{:?}", args.event_type)),
-      create_attribute("Organizer", args.organizer.to_string()),
-      create_attribute("Fee", args.commitment_fee.to_string()),
+      create_attribute("Event Type", format!("{:?}", event_type)),
+      create_attribute("Organizer", organizer.to_string()),
+      create_attribute("Fee", commitment_fee.to_string()),
     ];
 
     macro_rules! add_optional_attribute {
@@ -96,8 +112,8 @@ impl<'info> CreateEvent<'info> {
       };
     }
 
-    let event_start_time = if args.event_starts_at.is_some() {
-      let event_start_time_unwraped = args.event_starts_at.unwrap();
+    let event_start_time = if event_starts_at.is_some() {
+      let event_start_time_unwraped = event_starts_at.unwrap();
       let clock = Clock::get().unwrap();
       let current_time = clock.unix_timestamp;
 
@@ -111,23 +127,23 @@ impl<'info> CreateEvent<'info> {
       0
     };
 
-    if let Some(reg_end_time) = args.registration_ends_at {
+    if let Some(reg_end_time) = registration_ends_at {
       if reg_end_time.gt(&event_start_time) {
         return Err(FoshoErrors::InvalidRegistrationEndTime.into());
       }
     };
 
     add_optional_attribute!("Event Starts At", Some(event_start_time as u64));
-    add_optional_attribute!("Event Ends At", args.event_ends_at);
-    add_optional_attribute!("Registration Starts At", args.registration_starts_at);
-    add_optional_attribute!("Registration Ends At", args.registration_ends_at);
-    add_optional_attribute!("Capacity", args.capacity);
-    add_optional_attribute!("Location", args.location);
-    add_optional_attribute!("Virtual Link", args.virtual_link);
-    add_optional_attribute!("Description", args.description);
+    add_optional_attribute!("Event Ends At", event_ends_at);
+    add_optional_attribute!("Registration Starts At", registration_starts_at);
+    add_optional_attribute!("Registration Ends At", registration_ends_at);
+    add_optional_attribute!("Capacity", capacity);
+    add_optional_attribute!("Location", location);
+    add_optional_attribute!("Virtual Link", virtual_link);
+    add_optional_attribute!("Description", description);
 
     // Add custom attributes
-    if let Some(custom_attrs) = args.custom_attributes {
+    if let Some(custom_attrs) = custom_attributes {
       for (key, value) in custom_attrs {
         attribute_list.push(Attribute { key, value });
       }
@@ -143,35 +159,30 @@ impl<'info> CreateEvent<'info> {
       .update_authority(Some(&self.community.to_account_info()))
       .payer(&self.authority.to_account_info())
       .system_program(&self.system_program.to_account_info())
-      .name(args.name.clone())
-      .uri(args.uri.clone())
+      .name(name.clone())
+      .uri(uri.clone())
       .plugins(collection_plugin)
       .invoke()?;
     Ok(())
   }
 }
 
-#[derive(AnchorDeserialize, AnchorSerialize)]
-pub struct CreateEventArgs {
-  pub name: String,
-  pub uri: String,
-  pub event_type: EventType,
-  pub organizer: String,
-  pub commitment_fee: u64,
-  pub event_starts_at: Option<i64>,
-  pub event_ends_at: Option<i64>,
-  pub registration_starts_at: Option<i64>,
-  pub registration_ends_at: Option<i64>,
-  pub capacity: Option<u64>,
-  pub location: Option<String>,
-  pub virtual_link: Option<String>,
-  pub description: Option<String>,
-  pub custom_attributes: Option<Vec<(String, String)>>,
-}
-
 pub fn create_event_handler(
   ctx: Context<CreateEvent>,
-  args: CreateEventArgs,
+  name: String,
+  uri: String,
+  event_type: EventType,
+  organizer: String,
+  commitment_fee: u64,
+  event_starts_at: Option<i64>,
+  event_ends_at: Option<i64>,
+  registration_starts_at: Option<i64>,
+  registration_ends_at: Option<i64>,
+  capacity: Option<u64>,
+  location: Option<String>,
+  virtual_link: Option<String>,
+  description: Option<String>,
+  custom_attributes: Option<Vec<(String, String)>>,
   reward_per_user: u64,
   // event_authorities can sign join_event ixn
   // and the verify_attendance ixn
@@ -189,8 +200,8 @@ pub fn create_event_handler(
   } else {
     None
   };
-  let max_attendees = args.capacity.unwrap_or(1);
-  event.commitment_fee = args.commitment_fee;
+  let max_attendees = capacity.unwrap_or(1);
+  event.commitment_fee = commitment_fee;
 
   // handled by the event collection
   // event.max_attendees = max_attendees as u32;
@@ -225,7 +236,22 @@ pub fn create_event_handler(
   }
 
   // creates the event collection
-  ctx.accounts.create_event_collection(args)?;
+  ctx.accounts.create_event_collection(
+    name,
+    uri,
+    event_type,
+    organizer,
+    commitment_fee,
+    event_starts_at,
+    event_ends_at,
+    registration_starts_at,
+    registration_ends_at,
+    capacity,
+    location,
+    virtual_link,
+    description,
+    custom_attributes,
+  )?;
 
   Ok(())
 }

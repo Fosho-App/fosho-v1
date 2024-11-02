@@ -1,9 +1,11 @@
 use anchor_lang::prelude::*;
 
-declare_id!("DQzCnhf6qTaz2tPPj6jvicntC9hP2tqDzZp1RWKujXdT");
+// declare_id!("DQzCnhf6qTaz2tPPj6jvicntC9hP2tqDzZp1RWKujXdT");
+declare_id!("GZNvuxENwSG5jAsCJVLvVrhXyoF1ong3Gx98YAwKfhZe");
 
 mod instructions;
 use instructions::*;
+use state::EventType;
 pub mod constant;
 pub mod error;
 pub mod state;
@@ -24,7 +26,20 @@ pub mod fosho_program {
 
   pub fn create_event(
     ctx: Context<CreateEvent>,
-    args: CreateEventArgs,
+    name: String,
+    uri: String,
+    event_type: EventType,
+    organizer: String,
+    commitment_fee: u64,
+    event_starts_at: Option<i64>,
+    event_ends_at: Option<i64>,
+    registration_starts_at: Option<i64>,
+    registration_ends_at: Option<i64>,
+    capacity: Option<u64>,
+    location: Option<String>,
+    virtual_link: Option<String>,
+    description: Option<String>,
+    custom_attributes: Option<Vec<(String, String)>>,
     reward_per_user: u64,
     // event_authorities can sign join_event ixn
     // and the verify_attendance ixn
@@ -35,16 +50,34 @@ pub mod fosho_program {
     log_version();
     create_event_handler(
       ctx,
-      args,
+      name,
+      uri,
+      event_type,
+      organizer,
+      commitment_fee,
+      event_starts_at,
+      event_ends_at,
+      registration_starts_at,
+      registration_ends_at,
+      capacity,
+      location,
+      virtual_link,
+      description,
+      custom_attributes,
       reward_per_user,
       event_authorities,
       authority_must_sign,
     )
   }
 
-  pub fn join_event(ctx: Context<JoinEvent>, args: CreateTicketArgs) -> Result<()> {
+  pub fn join_event(
+    ctx: Context<JoinEvent>,
+    name: String,
+    uri: String,
+    custom_attributes: Option<Vec<(String, String)>>,
+  ) -> Result<()> {
     log_version();
-    join_event_handler(ctx, args)
+    join_event_handler(ctx, name, uri, custom_attributes)
   }
 
   pub fn verify_attendee(ctx: Context<VerifyAttendee>) -> Result<()> {

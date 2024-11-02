@@ -1,9 +1,14 @@
 use anchor_lang::prelude::*;
 
-use mpl_core::types::{
-  AppDataInitInfo, Attribute, Attributes, ExternalPluginAdapterInitInfo,
-  ExternalPluginAdapterSchema, PermanentBurnDelegate, PermanentFreezeDelegate,
-  PermanentTransferDelegate, Plugin, PluginAuthority, PluginAuthorityPair,
+use mpl_core::{
+  accounts::BaseAssetV1,
+  fetch_external_plugin_adapter_data_info,
+  types::{
+    AppDataInitInfo, Attribute, Attributes, ExternalPluginAdapterInitInfo,
+    ExternalPluginAdapterKey, ExternalPluginAdapterSchema, PermanentBurnDelegate,
+    PermanentFreezeDelegate, PermanentTransferDelegate, Plugin, PluginAuthority,
+    PluginAuthorityPair,
+  },
 };
 
 use crate::error::FoshoErrors;
@@ -112,4 +117,16 @@ pub fn create_ticket_plugins(
   })];
 
   (plugins, external_plugins)
+}
+
+pub fn check_if_already_scanned<'a>(ticket: AccountInfo<'a>, authority: &Pubkey) -> Result<()> {
+  let (_, app_data_length) = fetch_external_plugin_adapter_data_info::<BaseAssetV1>(
+    &ticket,
+    None,
+    &ExternalPluginAdapterKey::AppData(PluginAuthority::Address {
+      address: authority.key(),
+    }),
+  )?;
+
+  Ok(require!(app_data_length == 0, FoshoErrors::AlreadyScanned))
 }
