@@ -1,8 +1,4 @@
-use crate::{
-  constant::*,
-  error::FoshoErrors,
-  state::*,
-};
+use crate::{constant::*, error::FoshoErrors, state::*};
 use anchor_lang::prelude::*;
 
 use mpl_core::{
@@ -10,8 +6,7 @@ use mpl_core::{
   fetch_external_plugin_adapter_data_info,
   instructions::{UpdatePluginV1CpiBuilder, WriteExternalPluginAdapterDataV1CpiBuilder},
   types::{
-    ExternalPluginAdapterKey, PermanentFreezeDelegate, Plugin, PluginAuthority,
-    UpdateAuthority,
+    ExternalPluginAdapterKey, PermanentFreezeDelegate, Plugin, PluginAuthority, UpdateAuthority,
   },
   ID as MPL_CORE_ID,
 };
@@ -116,7 +111,7 @@ impl<'info> RejectAttendee<'info> {
 pub fn reject_attendee_handler(ctx: Context<RejectAttendee>) -> Result<()> {
   let attendee_record = &mut ctx.accounts.attendee_record;
   let event = &ctx.accounts.event;
-  
+
   match attendee_record.status {
     AttendeeStatus::Claimed => {
       return Err(FoshoErrors::AlreadyClaimed.into());
@@ -131,7 +126,8 @@ pub fn reject_attendee_handler(ctx: Context<RejectAttendee>) -> Result<()> {
     _ => {}
   }
 
-  let is_community_authority = ctx.accounts.event_authority.key() == ctx.accounts.community.authority;
+  let is_community_authority =
+    ctx.accounts.event_authority.key() == ctx.accounts.community.authority;
   if !is_community_authority {
     require!(
       event

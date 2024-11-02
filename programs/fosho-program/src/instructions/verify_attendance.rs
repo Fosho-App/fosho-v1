@@ -140,11 +140,8 @@ pub fn verify_attendee_handler(ctx: Context<VerifyAttendee>) -> Result<()> {
   let attendee_record = &mut ctx.accounts.attendee_record;
   let event = &ctx.accounts.event;
 
-  require!(
-    !event.is_cancelled,
-    FoshoErrors::EventCancelled
-  );
-  
+  require!(!event.is_cancelled, FoshoErrors::EventCancelled);
+
   match attendee_record.status {
     AttendeeStatus::Pending => {}
     AttendeeStatus::Claimed => {

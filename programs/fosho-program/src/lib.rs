@@ -13,7 +13,11 @@ pub mod utils;
 pub mod fosho_program {
   use super::*;
 
-  pub fn create_community(ctx: Context<CreateCommunity>, seed: Pubkey, community_name: String) -> Result<()> {
+  pub fn create_community(
+    ctx: Context<CreateCommunity>,
+    seed: Pubkey,
+    community_name: String,
+  ) -> Result<()> {
     log_version();
     create_community_handler(ctx, seed, community_name)
   }
@@ -29,7 +33,13 @@ pub mod fosho_program {
     authority_must_sign: bool,
   ) -> Result<()> {
     log_version();
-    create_event_handler(ctx, args, reward_per_user, event_authorities, authority_must_sign)
+    create_event_handler(
+      ctx,
+      args,
+      reward_per_user,
+      event_authorities,
+      authority_must_sign,
+    )
   }
 
   pub fn join_event(ctx: Context<JoinEvent>, args: CreateTicketArgs) -> Result<()> {

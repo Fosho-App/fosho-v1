@@ -169,7 +169,8 @@ pub fn join_event_handler(ctx: Context<JoinEvent>, args: CreateTicketArgs) -> Re
   let event = &ctx.accounts.event;
 
   if event.authority_must_sign {
-    let is_community_authority = ctx.accounts.event_authority.key() == ctx.accounts.community.authority;
+    let is_community_authority =
+      ctx.accounts.event_authority.key() == ctx.accounts.community.authority;
     if !is_community_authority {
       require!(
         event

@@ -18,4 +18,3 @@ mod cancel_event;
 
 pub use reject_attendance::*;
 mod reject_attendance;
-

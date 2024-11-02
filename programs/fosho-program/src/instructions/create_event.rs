@@ -191,7 +191,7 @@ pub fn create_event_handler(
   };
   let max_attendees = args.capacity.unwrap_or(1);
   event.commitment_fee = args.commitment_fee;
-  
+
   // handled by the event collection
   // event.max_attendees = max_attendees as u32;
   // event.event_start_time = event_start_time;

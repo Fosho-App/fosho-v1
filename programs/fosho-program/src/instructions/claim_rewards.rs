@@ -146,7 +146,7 @@ pub fn claim_rewards_handler(ctx: Context<ClaimRewards>) -> Result<()> {
       reward_mint.unwrap().decimals,
     )?;
   }
-  
+
   if event.commitment_fee.gt(&0) {
     ctx.accounts.claim_commitment_fee(event.commitment_fee)?;
   }
