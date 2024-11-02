@@ -15,3 +15,7 @@ mod claim_rewards;
 
 pub use cancel_event::*;
 mod cancel_event;
+
+pub use reject_attendance::*;
+mod reject_attendance;
+

@@ -8,10 +8,12 @@ pub enum FoshoErrors {
   InvalidRegistrationEndTime,
   #[msg("The event must start in a future.")]
   InvalidEventStartTime,
-  #[msg("Registration time has been expired")]
-  RegistrationTimeExpired,
-  #[msg("The maximum allowed attendees have already joined")]
-  MaxAttendeesAlreadyJoined,
+  #[msg("The registration period has not started yet")]
+  RegistrationNotStarted,
+  #[msg("The registration period has ended")]
+  RegistrationEnded,
+  #[msg("The maximum number of tickets has been reached")]
+  MaximumTicketsReached,
   #[msg("The rewards cannot be claimed during the pending status")]
   AttendeeStatusPending,
   #[msg("Not a valid claimer")]
@@ -19,5 +21,23 @@ pub enum FoshoErrors {
   #[msg("One of the accounts required for this ix is not provided")]
   AccountNotProvided,
   #[msg("this attendee has already claimed the rewards")]
-  AlreadyClaimed
+  AlreadyClaimed,
+  #[msg("The attribute is missing")]
+  MissingAttribute,
+  #[msg("Numerical Overflow")]
+  NumericalOverflow,
+  #[msg("Event Authority must sign")]
+  EventAuthorityMustSign,
+  #[msg("Event Authority Publickey mismatch")]
+  InvalidEventAuthority,
+  #[msg("Ticket has been signed already")]
+  AlreadyScanned,
+  #[msg("Event is cancelled")]
+  EventCancelled,
+  #[msg("Event has not ended")]
+  EventHasNotEnded,
+  #[msg("Event has not started")]
+  EventHasNotStarted,
+  #[msg("Event has ended")]
+  EventEnded,
 }

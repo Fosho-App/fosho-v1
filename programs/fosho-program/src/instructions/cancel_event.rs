@@ -1,5 +1,5 @@
-use anchor_lang::prelude::*;
 use crate::{constant::*, state::*};
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CancelEvent<'info> {
@@ -23,13 +23,13 @@ pub struct CancelEvent<'info> {
     has_one = authority
   )]
   pub community: Account<'info, Community>,
-  pub authority: Signer<'info>
+  pub authority: Signer<'info>,
 }
 
-pub fn cancel_event_handler(
-  ctx: Context<CancelEvent>
-) -> Result<()> {
+pub fn cancel_event_handler(ctx: Context<CancelEvent>) -> Result<()> {
   let event = &mut ctx.accounts.event;
   event.is_cancelled = true;
+  // should we burn the collection here?
+  // can an event be cancelled after join event occured?
   Ok(())
 }

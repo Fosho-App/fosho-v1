@@ -2,23 +2,22 @@ use crate::{
   constant::*,
   error::FoshoErrors,
   state::*,
-  utils::{get_event_ends_at_from_attributes, get_event_starts_at_from_attributes},
 };
 use anchor_lang::prelude::*;
 
 use mpl_core::{
   accounts::{BaseAssetV1, BaseCollectionV1},
-  fetch_external_plugin_adapter_data_info, fetch_plugin,
+  fetch_external_plugin_adapter_data_info,
   instructions::{UpdatePluginV1CpiBuilder, WriteExternalPluginAdapterDataV1CpiBuilder},
   types::{
-    Attributes, ExternalPluginAdapterKey, PermanentFreezeDelegate, Plugin, PluginAuthority,
-    PluginType, UpdateAuthority,
+    ExternalPluginAdapterKey, PermanentFreezeDelegate, Plugin, PluginAuthority,
+    UpdateAuthority,
   },
   ID as MPL_CORE_ID,
 };
 
 #[derive(Accounts)]
-pub struct VerifyAttendee<'info> {
+pub struct RejectAttendee<'info> {
   #[account(
     mut,
     has_one = event,
@@ -63,7 +62,7 @@ pub struct VerifyAttendee<'info> {
   pub mpl_core_program: UncheckedAccount<'info>,
 }
 
-impl<'info> VerifyAttendee<'info> {
+impl<'info> RejectAttendee<'info> {
   pub fn scan_ticket(&self) -> Result<()> {
     // just a double check.
     // there could be multiple event_authorities for an event.
@@ -77,29 +76,7 @@ impl<'info> VerifyAttendee<'info> {
     )?;
     require!(app_data_length == 0, FoshoErrors::AlreadyScanned);
 
-    let (_, collection_attribute_list, _) = fetch_plugin::<BaseCollectionV1, Attributes>(
-      &self.event_collection.to_account_info(),
-      PluginType::Attributes,
-    )?;
-    let event_starts_at =
-      get_event_starts_at_from_attributes(&collection_attribute_list.attribute_list)?;
-
-    let event_ends_at =
-      get_event_ends_at_from_attributes(&collection_attribute_list.attribute_list)?;
-
-    let current_unix_ts = Clock::get()?.unix_timestamp as u64;
-    if event_starts_at.ne(&0) {
-      require!(
-        current_unix_ts <= event_starts_at,
-        FoshoErrors::EventHasNotStarted
-      );
-    }
-
-    if event_ends_at.ne(&0) {
-      require!(current_unix_ts >= event_ends_at, FoshoErrors::EventEnded);
-    }
-
-    let data: Vec<u8> = "Scanned".as_bytes().to_vec();
+    let data: Vec<u8> = "Rejected".as_bytes().to_vec();
 
     // The event authority is the `signer` of this instruction.
     WriteExternalPluginAdapterDataV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
@@ -136,17 +113,11 @@ impl<'info> VerifyAttendee<'info> {
   }
 }
 
-pub fn verify_attendee_handler(ctx: Context<VerifyAttendee>) -> Result<()> {
+pub fn reject_attendee_handler(ctx: Context<RejectAttendee>) -> Result<()> {
   let attendee_record = &mut ctx.accounts.attendee_record;
   let event = &ctx.accounts.event;
-
-  require!(
-    !event.is_cancelled,
-    FoshoErrors::EventCancelled
-  );
   
   match attendee_record.status {
-    AttendeeStatus::Pending => {}
     AttendeeStatus::Claimed => {
       return Err(FoshoErrors::AlreadyClaimed.into());
     }
@@ -156,16 +127,20 @@ pub fn verify_attendee_handler(ctx: Context<VerifyAttendee>) -> Result<()> {
     AttendeeStatus::Verified => {
       return Err(FoshoErrors::AlreadyScanned.into());
     }
+    // only pending can be rejected
+    _ => {}
   }
 
-  require!(
-    event
-      .event_authorities
-      .contains(&ctx.accounts.event_authority.key()),
-    FoshoErrors::InvalidEventAuthority
-  );
-
-  attendee_record.status = AttendeeStatus::Verified;
+  let is_community_authority = ctx.accounts.event_authority.key() == ctx.accounts.community.authority;
+  if !is_community_authority {
+    require!(
+      event
+        .event_authorities
+        .contains(&ctx.accounts.event_authority.key()),
+      FoshoErrors::InvalidEventAuthority
+    );
+  }
+  attendee_record.status = AttendeeStatus::Rejected;
 
   ctx.accounts.scan_ticket()?;
   Ok(())
