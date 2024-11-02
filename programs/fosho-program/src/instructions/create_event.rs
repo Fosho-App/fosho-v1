@@ -7,7 +7,7 @@ use anchor_spl::{
 
 use mpl_core::{
   instructions::CreateCollectionV2CpiBuilder,
-  types::{Attribute, Attributes, Plugin, PluginAuthority, PluginAuthorityPair},
+  types::{Attributes, Plugin, PluginAuthority, PluginAuthorityPair},
   ID as MPL_CORE_ID,
 };
 
@@ -96,7 +96,6 @@ impl<'info> CreateEvent<'info> {
     location: Option<String>,
     virtual_link: Option<String>,
     description: Option<String>,
-    custom_attributes: Option<Vec<(String, String)>>,
   ) -> Result<()> {
     let mut attribute_list = vec![
       create_attribute("Event Type", format!("{:?}", event_type)),
@@ -128,7 +127,7 @@ impl<'info> CreateEvent<'info> {
     };
 
     if let Some(reg_end_time) = registration_ends_at {
-      if reg_end_time.gt(&event_start_time) {
+      if event_start_time.gt(&reg_end_time) {
         return Err(FoshoErrors::InvalidRegistrationEndTime.into());
       }
     };
@@ -142,12 +141,6 @@ impl<'info> CreateEvent<'info> {
     add_optional_attribute!("Virtual Link", virtual_link);
     add_optional_attribute!("Description", description);
 
-    // Add custom attributes
-    if let Some(custom_attrs) = custom_attributes {
-      for (key, value) in custom_attrs {
-        attribute_list.push(Attribute { key, value });
-      }
-    }
     let collection_plugin = vec![PluginAuthorityPair {
       plugin: Plugin::Attributes(Attributes { attribute_list }),
       authority: Some(PluginAuthority::UpdateAuthority),
@@ -155,7 +148,7 @@ impl<'info> CreateEvent<'info> {
 
     // Create the Event Collection
     CreateCollectionV2CpiBuilder::new(&self.mpl_core_program.to_account_info())
-      .collection(&self.event.to_account_info())
+      .collection(&self.event_collection.to_account_info())
       .update_authority(Some(&self.community.to_account_info()))
       .payer(&self.authority.to_account_info())
       .system_program(&self.system_program.to_account_info())
@@ -163,6 +156,7 @@ impl<'info> CreateEvent<'info> {
       .uri(uri.clone())
       .plugins(collection_plugin)
       .invoke()?;
+
     Ok(())
   }
 }
@@ -182,7 +176,6 @@ pub fn create_event_handler(
   location: Option<String>,
   virtual_link: Option<String>,
   description: Option<String>,
-  custom_attributes: Option<Vec<(String, String)>>,
   reward_per_user: u64,
   // event_authorities can sign join_event ixn
   // and the verify_attendance ixn
@@ -234,7 +227,6 @@ pub fn create_event_handler(
       reward_mint.unwrap().decimals,
     )?;
   }
-
   // creates the event collection
   ctx.accounts.create_event_collection(
     name,
@@ -250,7 +242,6 @@ pub fn create_event_handler(
     location,
     virtual_link,
     description,
-    custom_attributes,
   )?;
 
   Ok(())

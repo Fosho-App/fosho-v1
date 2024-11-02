@@ -59,39 +59,32 @@ pub struct RejectAttendee<'info> {
 
 impl<'info> RejectAttendee<'info> {
   pub fn scan_ticket(&self) -> Result<()> {
-    // just a double check.
-    // there could be multiple event_authorities for an event.
-    // thus, another verified check is done prior to this.
-
-    // Check each authority for existing scan
-    for authority in &self.event.event_authorities {
-      check_if_already_scanned(self.ticket.to_account_info(), authority)?;
-    }
     // check if community authority scanned
-    check_if_already_scanned(self.ticket.to_account_info(), &self.community.authority)?;
+    check_if_already_scanned(self.ticket.to_account_info(), &self.community.key())?;
 
     let data: Vec<u8> = "Rejected".as_bytes().to_vec();
-
-    // The event authority is the `signer` of this instruction.
-    WriteExternalPluginAdapterDataV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
-      .asset(&self.ticket.to_account_info())
-      .collection(Some(&self.event.to_account_info()))
-      .payer(&self.event_authority.to_account_info())
-      .authority(Some(&self.event_authority.to_account_info()))
-      .system_program(&self.system_program.to_account_info())
-      .key(ExternalPluginAdapterKey::AppData(
-        PluginAuthority::Address {
-          address: self.event_authority.key(),
-        },
-      ))
-      .data(data)
-      .invoke()?;
 
     let signer_seeds = &[
       COMMUNITY_PRE_SEED.as_ref(),
       self.community.seed.as_ref(),
       &[self.community.bump],
     ];
+
+    // The event authority is the `signer` of this instruction.
+    WriteExternalPluginAdapterDataV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
+      .asset(&self.ticket.to_account_info())
+      .collection(Some(&self.event_collection.to_account_info()))
+      .payer(&self.event_authority.to_account_info())
+      .authority(Some(&self.community.to_account_info()))
+      .system_program(&self.system_program.to_account_info())
+      .key(ExternalPluginAdapterKey::AppData(
+        PluginAuthority::Address {
+          address: self.community.key(),
+        },
+      ))
+      .data(data)
+      .invoke_signed(&[signer_seeds])?;
+
     UpdatePluginV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
       .asset(&self.ticket.to_account_info())
       .collection(Some(&self.event.to_account_info()))

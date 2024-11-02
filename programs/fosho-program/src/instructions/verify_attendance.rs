@@ -24,6 +24,12 @@ use mpl_core::{
 pub struct VerifyAttendee<'info> {
   #[account(
     mut,
+    seeds = [
+      ATTENDEE_PRE_SEED.as_ref(),
+      event.key().as_ref(),
+      owner.key().as_ref()
+    ],
+    bump= attendee_record.bump,
     has_one = event,
     has_one = owner,
   )]
@@ -69,23 +75,15 @@ pub struct VerifyAttendee<'info> {
 
 impl<'info> VerifyAttendee<'info> {
   pub fn scan_ticket(&self) -> Result<()> {
-    // just a double check.
-    // there could be multiple event_authorities for an event.
-    // thus, another verified check is done prior to this.
-
-    // Check each authority for existing scan
-    for authority in &self.event.event_authorities {
-      check_if_already_scanned(self.ticket.to_account_info(), authority)?;
-    }
     // check if community authority scanned
-    check_if_already_scanned(self.ticket.to_account_info(), &self.community.authority)?;
+    check_if_already_scanned(self.ticket.to_account_info(), &self.community.key())?;
 
     // If we get here, no authorities have scanned yet, so we can continue
-
     let (_, collection_attribute_list, _) = fetch_plugin::<BaseCollectionV1, Attributes>(
       &self.event_collection.to_account_info(),
       PluginType::Attributes,
     )?;
+
     let event_starts_at =
       get_event_starts_at_from_attributes(&collection_attribute_list.attribute_list)?;
 
@@ -95,40 +93,40 @@ impl<'info> VerifyAttendee<'info> {
     let current_unix_ts = Clock::get()?.unix_timestamp as u64;
     if event_starts_at.ne(&0) {
       require!(
-        current_unix_ts <= event_starts_at,
+        current_unix_ts >= event_starts_at,
         FoshoErrors::EventHasNotStarted
       );
     }
 
     if event_ends_at.ne(&0) {
-      require!(current_unix_ts >= event_ends_at, FoshoErrors::EventEnded);
+      require!(current_unix_ts <= event_ends_at, FoshoErrors::EventEnded);
     }
 
     let data: Vec<u8> = "Scanned".as_bytes().to_vec();
-
-    // The event authority is the `signer` of this instruction.
-    WriteExternalPluginAdapterDataV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
-      .asset(&self.ticket.to_account_info())
-      .collection(Some(&self.event.to_account_info()))
-      .payer(&self.event_authority.to_account_info())
-      .authority(Some(&self.event_authority.to_account_info()))
-      .system_program(&self.system_program.to_account_info())
-      .key(ExternalPluginAdapterKey::AppData(
-        PluginAuthority::Address {
-          address: self.event_authority.key(),
-        },
-      ))
-      .data(data)
-      .invoke()?;
 
     let signer_seeds = &[
       COMMUNITY_PRE_SEED.as_ref(),
       self.community.seed.as_ref(),
       &[self.community.bump],
     ];
+    // The event authority is the `signer` of this instruction.
+    WriteExternalPluginAdapterDataV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
+      .asset(&self.ticket.to_account_info())
+      .collection(Some(&self.event_collection.to_account_info()))
+      .payer(&self.event_authority.to_account_info())
+      .authority(Some(&self.community.to_account_info()))
+      .system_program(&self.system_program.to_account_info())
+      .key(ExternalPluginAdapterKey::AppData(
+        PluginAuthority::Address {
+          address: self.community.key(),
+        },
+      ))
+      .data(data)
+      .invoke_signed(&[signer_seeds])?;
+
     UpdatePluginV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
       .asset(&self.ticket.to_account_info())
-      .collection(Some(&self.event.to_account_info()))
+      .collection(Some(&self.event_collection.to_account_info()))
       .payer(&self.event_authority.to_account_info())
       .authority(Some(&self.community.to_account_info()))
       .system_program(&self.system_program.to_account_info())

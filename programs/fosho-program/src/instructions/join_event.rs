@@ -82,12 +82,7 @@ impl<'info> JoinEvent<'info> {
     CpiContext::new(cpi_program, cpi_accounts)
   }
 
-  pub fn create_event_ticket(
-    &self,
-    name: String,
-    uri: String,
-    custom_attributes: Option<Vec<(String, String)>>,
-  ) -> Result<()> {
+  pub fn create_event_ticket(&self) -> Result<()> {
     // Check that the maximum number of tickets has not been reached yet
     let (_, collection_attribute_list, _) = fetch_plugin::<BaseCollectionV1, Attributes>(
       &self.event_collection.to_account_info(),
@@ -122,20 +117,13 @@ impl<'info> JoinEvent<'info> {
     }
 
     // Create ticket attributes
-    let mut attribute_list = vec![
+    let attribute_list = vec![
       create_attribute(
         "Ticket Number",
         (self.event_collection.num_minted + 1).to_string(),
       ),
       create_attribute("Fee", self.event.commitment_fee.to_string()),
     ];
-
-    // Add custom attributes
-    if let Some(custom_attrs) = custom_attributes {
-      for (key, value) in custom_attrs {
-        attribute_list.push(create_attribute(&key, value));
-      }
-    }
 
     // Create ticket plugins
     let ticket_plugins = create_ticket_plugins(attribute_list, self.community.key());
@@ -145,6 +133,13 @@ impl<'info> JoinEvent<'info> {
       &[self.community.bump],
     ];
 
+    // we derive the name from the collection but add Ticket + No.
+    let name = format!(
+      "{} #{}",
+      self.event_collection.name,
+      self.event_collection.num_minted + 1
+    );
+    let uri = self.event_collection.uri.clone();
     // Create the Ticket
     CreateV2CpiBuilder::new(&self.mpl_core_program.to_account_info())
       .asset(&self.ticket.to_account_info())
@@ -163,12 +158,7 @@ impl<'info> JoinEvent<'info> {
   }
 }
 
-pub fn join_event_handler(
-  ctx: Context<JoinEvent>,
-  name: String,
-  uri: String,
-  custom_attributes: Option<Vec<(String, String)>>,
-) -> Result<()> {
+pub fn join_event_handler(ctx: Context<JoinEvent>) -> Result<()> {
   let event = &ctx.accounts.event;
 
   if event.authority_must_sign {
@@ -198,9 +188,7 @@ pub fn join_event_handler(
   // require_gte!(event.registration_end_time, current_time, FoshoErrors::RegistrationTimeExpired);
   // require_gt!(event.max_attendees, event.current_attendees, FoshoErrors::MaxAttendeesAlreadyJoined);
 
-  ctx
-    .accounts
-    .create_event_ticket(name, uri, custom_attributes)?;
+  ctx.accounts.create_event_ticket()?;
 
   if event.commitment_fee.gt(&0) {
     transfer(ctx.accounts.transfer_commitment_fee(), event.commitment_fee)?;

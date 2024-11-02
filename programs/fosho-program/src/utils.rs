@@ -120,13 +120,16 @@ pub fn create_ticket_plugins(
 }
 
 pub fn check_if_already_scanned<'a>(ticket: AccountInfo<'a>, authority: &Pubkey) -> Result<()> {
-  let (_, app_data_length) = fetch_external_plugin_adapter_data_info::<BaseAssetV1>(
+  let app_data_length = match fetch_external_plugin_adapter_data_info::<BaseAssetV1>(
     &ticket,
     None,
     &ExternalPluginAdapterKey::AppData(PluginAuthority::Address {
       address: authority.key(),
     }),
-  )?;
+  ) {
+    Ok((_, length)) => length,
+    Err(_) => 0,
+  };
 
   Ok(require!(app_data_length == 0, FoshoErrors::AlreadyScanned))
 }

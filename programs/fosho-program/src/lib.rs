@@ -24,6 +24,7 @@ pub mod fosho_program {
     create_community_handler(ctx, seed, community_name)
   }
 
+  #[inline(never)]
   pub fn create_event(
     ctx: Context<CreateEvent>,
     name: String,
@@ -39,7 +40,6 @@ pub mod fosho_program {
     location: Option<String>,
     virtual_link: Option<String>,
     description: Option<String>,
-    custom_attributes: Option<Vec<(String, String)>>,
     reward_per_user: u64,
     // event_authorities can sign join_event ixn
     // and the verify_attendance ixn
@@ -63,21 +63,15 @@ pub mod fosho_program {
       location,
       virtual_link,
       description,
-      custom_attributes,
       reward_per_user,
       event_authorities,
       authority_must_sign,
     )
   }
 
-  pub fn join_event(
-    ctx: Context<JoinEvent>,
-    name: String,
-    uri: String,
-    custom_attributes: Option<Vec<(String, String)>>,
-  ) -> Result<()> {
+  pub fn join_event(ctx: Context<JoinEvent>) -> Result<()> {
     log_version();
-    join_event_handler(ctx, name, uri, custom_attributes)
+    join_event_handler(ctx)
   }
 
   pub fn verify_attendee(ctx: Context<VerifyAttendee>) -> Result<()> {
