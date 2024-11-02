@@ -16,5 +16,6 @@ impl Attendee {
 pub enum AttendeeStatus {
   Pending,
   Verified,
-  Rejected
+  Rejected,
+  Claimed
 }

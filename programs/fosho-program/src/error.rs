@@ -17,5 +17,7 @@ pub enum FoshoErrors {
   #[msg("Not a valid claimer")]
   InvalidClaimer,
   #[msg("One of the accounts required for this ix is not provided")]
-  AccountNotProvided
+  AccountNotProvided,
+  #[msg("this attendee has already claimed the rewards")]
+  AlreadyClaimed
 }

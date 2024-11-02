@@ -75,14 +75,21 @@ impl<'info> ClaimRewards<'info> {
 pub fn claim_rewards_handler(
   ctx: Context<ClaimRewards>
 ) -> Result<()> {
-  let attendee_record = &ctx.accounts.attendee_record;
+  let attendee_record = &mut ctx.accounts.attendee_record;
   let claimer = ctx.accounts.claimer.key();
   let community = &ctx.accounts.community;
   let event = &ctx.accounts.event;
 
+  if event.is_cancelled {
+    attendee_record.status = AttendeeStatus::Verified;
+  }
+
   match attendee_record.status {
     AttendeeStatus::Pending => { 
       return Err(FoshoErrors::AttendeeStatusPending.into());
+    },
+    AttendeeStatus::Claimed => { 
+      return Err(FoshoErrors::AlreadyClaimed.into());
     },
     AttendeeStatus::Rejected => {
       require_keys_eq!(claimer, community.authority, FoshoErrors::InvalidClaimer);
@@ -91,6 +98,8 @@ pub fn claim_rewards_handler(
       require_keys_eq!(claimer, attendee_record.owner, FoshoErrors::InvalidClaimer);
     }
   }
+
+  attendee_record.status = AttendeeStatus::Claimed;
 
   if event.reward_per_user.gt(&0) {
     let reward_mint = ctx.accounts.reward_mint.as_ref();
@@ -112,5 +121,6 @@ pub fn claim_rewards_handler(
   }
 
   ctx.accounts.claim_commitment_fee(event.commitment_fee)?;
+    
   Ok(())
 }

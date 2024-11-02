@@ -1,16 +1,21 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { FoshoProgram } from "../target/types/fosho_program";
-import * as token from "@solana/spl-token";
 import pvt from "../../../../sol/id.json";
+import idl from "../target/idl/fosho_program.json";
+import {FoshoProgram} from "../target/types/fosho_program";
+import * as token from "@solana/spl-token"
 
 describe("fosho-program", () => {
   // Configure the client to use the local cluster.
-  anchor.setProvider(anchor.AnchorProvider.env());
+  // anchor.setProvider(anchor.AnchorProvider.env());
 
-  const program = anchor.workspace.FoshoProgram as Program<FoshoProgram>;
+  const connection = new anchor.web3.Connection(anchor.web3.clusterApiUrl("devnet"));
   const keypair = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(pvt));
+  const wallet = new anchor.Wallet(keypair);
 
+  const provider = new anchor.AnchorProvider(connection, wallet, {})
+  const program = new Program<FoshoProgram>(idl as FoshoProgram, provider);
+  
   const seed = anchor.web3.Keypair.generate().publicKey;
 
   const [community] = anchor.web3.PublicKey.findProgramAddressSync([
@@ -35,7 +40,7 @@ describe("fosho-program", () => {
     return event
   }
 
-  xit("creates community", async () => {
+  it("creates community", async () => {
     const tx = await program.methods.createCommunity(seed).rpc();
     console.log("Your transaction signature", tx);
     console.log("seed of the community: ", seed);
@@ -46,7 +51,6 @@ describe("fosho-program", () => {
     const event = getEvent(0)
 
     const tx = await program.methods.createEvent(
-      0,
       2,
       new anchor.BN(0.1 * anchor.web3.LAMPORTS_PER_SOL),
       new anchor.BN(Date.now()/1000 + 86400),
@@ -72,7 +76,6 @@ describe("fosho-program", () => {
     const rewardAccount = anchor.utils.token.associatedAddress({mint, owner: event});
 
     const tx = await program.methods.createEvent(
-      nonce,
       5,
       new anchor.BN(0.1 * anchor.web3.LAMPORTS_PER_SOL),
       new anchor.BN(Date.now()/1000 + 86400),

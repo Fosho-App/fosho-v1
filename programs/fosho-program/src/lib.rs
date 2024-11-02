@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("5ojhS89XpkvrSyagCddG7fv4wh2ffx8kVA6ABDYttZdN");
+declare_id!("DQzCnhf6qTaz2tPPj6jvicntC9hP2tqDzZp1RWKujXdT");
 
 mod instructions;
 use instructions::*;
@@ -19,7 +19,6 @@ pub mod fosho_program {
 
     pub fn create_event(
         ctx: Context<CreateEvent>, 
-        nonce: u32,
         max_attendees: u32,
         commitment_fee: u64,
         event_start_time: i64,
@@ -28,7 +27,7 @@ pub mod fosho_program {
     ) -> Result<()> {
         log_version();
         create_event_handler(
-            ctx, nonce, max_attendees, commitment_fee, event_start_time, registration_end_time, reward_per_user
+            ctx, max_attendees, commitment_fee, event_start_time, registration_end_time, reward_per_user
         )
     }
 

@@ -6,16 +6,14 @@ use anchor_spl::{
 };
 
 #[derive(Accounts)]
-#[instruction(
-  nonce: u32
-)]
+#[instruction()]
 pub struct CreateEvent<'info> {
   #[account(
     init,
     seeds = [
       EVENT_PRE_SEED.as_ref(),
       community.key().as_ref(),
-      &nonce.to_le_bytes()
+      &community.events_count.to_le_bytes()
     ],
     bump,
     payer = authority,
@@ -23,6 +21,7 @@ pub struct CreateEvent<'info> {
   )]
   pub event: Account<'info, Event>,
   #[account(
+    mut,
     seeds = [
       COMMUNITY_PRE_SEED.as_ref(),
       community.seed.as_ref(),
@@ -75,7 +74,6 @@ impl<'info> CreateEvent<'info> {
 
 pub fn create_event_handler(
   ctx: Context<CreateEvent>, 
-  nonce: u32, 
   max_attendees: u32,
   commitment_fee: u64,
   event_start_time: i64,
@@ -83,6 +81,7 @@ pub fn create_event_handler(
   reward_per_user: u64
 ) -> Result<()> {
   let event = &mut ctx.accounts.event;
+  let community = &mut ctx.accounts.community;
 
   let clock = Clock::get().unwrap();
   let current_time = clock.unix_timestamp;
@@ -109,12 +108,15 @@ pub fn create_event_handler(
   event.commitment_fee = commitment_fee;
   event.max_attendees = max_attendees;
   event.event_start_time = event_start_time;
-  event.community = ctx.accounts.community.key();
-  event.nonce = nonce;
+  event.community = community.key();
+  event.nonce = community.events_count;
   event.current_attendees = 0;
   event.bump = ctx.bumps.event;
   event.is_cancelled = false;
+  event.reward_per_user = reward_per_user;
   
+  community.events_count += 1;
+
   if reward_per_user.gt(&0) {
     if 
       ctx.accounts.reward_mint.is_none() || 
