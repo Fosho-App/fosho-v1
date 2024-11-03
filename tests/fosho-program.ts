@@ -3,8 +3,12 @@ import { Program } from "@coral-xyz/anchor";
 import { FoshoProgram } from "../target/types/fosho_program";
 import crypto from "crypto";
 import { assert } from "chai";
-import { createUmi as basecreateUmi } from '@metaplex-foundation/umi-bundle-tests';
-import { fetchAssetV1, fetchCollectionV1, mplCore } from "@metaplex-foundation/mpl-core";
+import { createUmi as basecreateUmi } from "@metaplex-foundation/umi-bundle-tests";
+import {
+  fetchAssetV1,
+  fetchCollectionV1,
+  mplCore,
+} from "@metaplex-foundation/mpl-core";
 import { publicKey } from "@metaplex-foundation/umi";
 
 const sleep = (ms: number) => require("timers/promises").setTimeout(ms);
@@ -71,9 +75,7 @@ describe("fosho-program", () => {
     return attendeeRecord;
   };
 
-  const getEventCollection = (
-    event: anchor.web3.PublicKey,
-  ) => {
+  const getEventCollection = (event: anchor.web3.PublicKey) => {
     const [attendeeRecord] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("event"), event.toBuffer(), Buffer.from("collection")],
       program.programId
@@ -84,16 +86,20 @@ describe("fosho-program", () => {
 
   const getEventTicketAsset = (
     event: anchor.web3.PublicKey,
-    owner: anchor.web3.PublicKey,
+    owner: anchor.web3.PublicKey
   ) => {
     const [attendeeRecord] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("event"), event.toBuffer(), owner.toBuffer(), Buffer.from("ticket")],
+      [
+        Buffer.from("event"),
+        event.toBuffer(),
+        owner.toBuffer(),
+        Buffer.from("ticket"),
+      ],
       program.programId
     );
 
     return attendeeRecord;
   };
-
 
   const event = getEvent(0);
   const attendeeRecord1 = getAttendeeRecord(event, eventAttendee1.publicKey);
@@ -105,18 +111,11 @@ describe("fosho-program", () => {
   // console.log("Provider pubkey", program.provider.publicKey.toString());
 
   it("creates community", async () => {
-    await program.methods
-      .createCommunity(seed, "testCommunity")
-      .rpc();
+    await program.methods.createCommunity(seed, "testCommunity").rpc();
 
     const communityData = await program.account.community.fetch(community);
-    assert.strictEqual(
-      communityData.name,
-      "testCommunity",
-    );
-    assert.strictEqual(
-      communityData.seed.toString(),
-      seed.toString());
+    assert.strictEqual(communityData.name, "testCommunity");
+    assert.strictEqual(communityData.seed.toString(), seed.toString());
   });
 
   it("creates event", async () => {
@@ -163,24 +162,17 @@ describe("fosho-program", () => {
     const eventData = await program.account.event.fetch(event);
     assert.strictEqual(
       eventData.commitmentFee.toNumber(),
-      0.1* anchor.web3.LAMPORTS_PER_SOL,
+      0.1 * anchor.web3.LAMPORTS_PER_SOL
     );
-    assert.strictEqual(
-      eventData.authorityMustSign,
-      true,
-    );
+    assert.strictEqual(eventData.authorityMustSign, true);
     const eventCollection = getEventCollection(event);
     const umi = await createUmi();
-    const eventCollectionData = await fetchCollectionV1(umi, publicKey(eventCollection));
-    assert.strictEqual(
-      eventCollectionData.numMinted,
-      0,
+    const eventCollectionData = await fetchCollectionV1(
+      umi,
+      publicKey(eventCollection)
     );
-    assert.strictEqual(
-      eventCollectionData.name,
-      "testEvent",
-    );
-  
+    assert.strictEqual(eventCollectionData.numMinted, 0);
+    assert.strictEqual(eventCollectionData.name, "testEvent");
   });
 
   it("joins event - 3 attendees", async () => {
@@ -345,33 +337,30 @@ describe("fosho-program", () => {
 
     const umi = await createUmi();
     const eventCollection = getEventCollection(event);
-    const eventCollectionData = await fetchCollectionV1(umi, publicKey(eventCollection));
-    assert.strictEqual(
-      eventCollectionData.numMinted,
-      3,
+    const eventCollectionData = await fetchCollectionV1(
+      umi,
+      publicKey(eventCollection)
     );
-    assert.strictEqual(
-      eventCollectionData.currentSize,
-     3,
+    assert.strictEqual(eventCollectionData.numMinted, 3);
+    assert.strictEqual(eventCollectionData.currentSize, 3);
+    const attendeeAsset = getEventTicketAsset(event, eventAttendee1.publicKey);
+    const eventTicketAssetData = await fetchAssetV1(
+      umi,
+      publicKey(attendeeAsset)
     );
-    const attendeeAsset =  getEventTicketAsset(event, eventAttendee1.publicKey);
-    const eventTicketAssetData = await fetchAssetV1(umi, publicKey(attendeeAsset));
     assert.strictEqual(
       eventTicketAssetData.owner.toString(),
-      eventAttendee1.publicKey.toString(),
+      eventAttendee1.publicKey.toString()
     );
     assert.strictEqual(
       eventTicketAssetData.name.toString(),
-      "testEvent #" + "1",
+      "testEvent #" + "1"
     );
 
-    assert.strictEqual(
-      eventTicketAssetData.updateAuthority.type,
-      "Collection",
-    );
+    assert.strictEqual(eventTicketAssetData.updateAuthority.type, "Collection");
     assert.strictEqual(
       eventTicketAssetData.updateAuthority.address.toString(),
-      eventCollection.toString(),
+      eventCollection.toString()
     );
 
     const attendeeDataRejected = await program.account.attendee.fetch(
@@ -379,17 +368,62 @@ describe("fosho-program", () => {
     );
     assert.strictEqual(
       attendeeDataRejected.owner.toString(),
-      eventAttendeeRejected.publicKey.toString(), 
+      eventAttendeeRejected.publicKey.toString()
     );
     const attendeeData = await program.account.attendee.fetch(attendeeRecord1);
     assert.strictEqual(
       attendeeData.owner.toString(),
-      eventAttendee1.publicKey.toString(), 
+      eventAttendee1.publicKey.toString()
     );
-    assert.deepStrictEqual(
-      attendeeData.status,
-      { pending: {} }
-    );
+    assert.deepStrictEqual(attendeeData.status, { pending: {} });
+  });
+
+  it("joined attendee cannot rejoin", async () => {
+    const rejoinJoinedEventIxn = await program.methods
+      .joinEvent()
+      .accountsPartial({
+        community,
+        event,
+        eventAuthority: eventAuthority.publicKey,
+        attendee: eventAttendee1.publicKey,
+        mplCoreProgram: new anchor.web3.PublicKey(
+          "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        ),
+      })
+      .instruction();
+
+    // include the eventAuthority as a signer
+    rejoinJoinedEventIxn.keys = rejoinJoinedEventIxn.keys.map((key) => {
+      if (key.pubkey.equals(eventAuthority.publicKey)) {
+        return {
+          pubkey: key.pubkey,
+          isSigner: true,
+          isWritable: false,
+        };
+      }
+      return key;
+    });
+
+    const messageV0Rejoin = new anchor.web3.TransactionMessage({
+      instructions: [rejoinJoinedEventIxn],
+      payerKey: eventAttendee1.publicKey,
+      recentBlockhash: (await program.provider.connection.getLatestBlockhash())
+        .blockhash,
+    }).compileToV0Message([]);
+
+    const txJoinEventRejoin = new anchor.web3.VersionedTransaction(messageV0Rejoin);
+    txJoinEventRejoin.sign([eventAttendee1, eventAuthority]);
+    try {
+      await program.provider.connection.sendRawTransaction(
+        txJoinEventRejoin.serialize()
+      );
+      assert.fail("Transaction should have failed");
+    } catch (error) {
+      const logs = error.logs;
+      assert.ok(logs.some((log: string) => log.includes("already in use")));
+      assert.ok(logs.some((log: string) => log.includes("custom program error: 0x0")));
+      assert.ok(logs.some((log: string) => log.includes(getAttendeeRecord(event, eventAttendee1.publicKey).toString())));
+    }
   });
 
   it("reject attendenace", async () => {
@@ -425,15 +459,58 @@ describe("fosho-program", () => {
       ),
       "confirmed"
     );
-    const attendeeDataRejectedData = await program.account.attendee.fetch(attendeeRecordRejected);
+    const attendeeDataRejectedData = await program.account.attendee.fetch(
+      attendeeRecordRejected
+    );
     assert.strictEqual(
       attendeeDataRejectedData.owner.toString(),
-      eventAttendeeRejected.publicKey.toString(), 
+      eventAttendeeRejected.publicKey.toString()
     );
-    assert.deepStrictEqual(
-      attendeeDataRejectedData.status,
-      { rejected: {} }
+    assert.deepStrictEqual(attendeeDataRejectedData.status, { rejected: {} });
+  });
+
+  it("rejected attendenace cannot verify attendance", async () => {
+    const verifyAttendanceForRejectedIxn = await program.methods
+      .verifyAttendee()
+      .accountsPartial({
+        community,
+        event,
+        eventAuthority: eventAuthority.publicKey,
+        owner: eventAttendeeRejected.publicKey,
+        mplCoreProgram: new anchor.web3.PublicKey(
+          "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        ),
+      })
+      .instruction();
+
+    const messageV0VerifyAttendanceForRejected =
+      new anchor.web3.TransactionMessage({
+        instructions: [verifyAttendanceForRejectedIxn],
+        payerKey: eventAuthority.publicKey,
+        recentBlockhash: (
+          await program.provider.connection.getLatestBlockhash()
+        ).blockhash,
+      }).compileToV0Message([]);
+
+    const txVerifyAttendanceForRejected = new anchor.web3.VersionedTransaction(
+      messageV0VerifyAttendanceForRejected
     );
+
+    // must manually sign the transaction
+    txVerifyAttendanceForRejected.sign([eventAuthority]);
+    try {
+      await program.provider.connection.sendRawTransaction(
+        txVerifyAttendanceForRejected.serialize()
+      );
+      assert.fail("Transaction should have failed");
+    } catch (error) {
+      const logs = error.logs;
+      assert.ok(logs.some((log: string) => log.includes("Error Code: AlreadyScanned")));
+      assert.ok(logs.some((log: string) => log.includes("Error Number: 6014")));
+      assert.ok(
+        logs.some((log: string) => log.includes("Ticket has been signed already"))
+      );
+    }
   });
 
   it("verify attendenace", async () => {
@@ -469,33 +546,79 @@ describe("fosho-program", () => {
       ),
       "confirmed"
     );
-    
-    const eventAttendee1Data = await program.account.attendee.fetch(attendeeRecord1);
+
+    const eventAttendee1Data = await program.account.attendee.fetch(
+      attendeeRecord1
+    );
     assert.strictEqual(
       eventAttendee1Data.owner.toString(),
-      eventAttendee1.publicKey.toString(), 
+      eventAttendee1.publicKey.toString()
     );
-    assert.deepStrictEqual(
-      eventAttendee1Data.status,
-      { verified: {} }
-    );
+    assert.deepStrictEqual(eventAttendee1Data.status, { verified: {} });
 
     const umi = await createUmi();
     const attendeeAsset = getEventTicketAsset(event, eventAttendee1.publicKey);
-    const eventTicketAssetData = await fetchAssetV1(umi, publicKey(attendeeAsset));
+    const eventTicketAssetData = await fetchAssetV1(
+      umi,
+      publicKey(attendeeAsset)
+    );
     assert.strictEqual(
       eventTicketAssetData.owner.toString(),
-      eventAttendee1.publicKey.toString(),
+      eventAttendee1.publicKey.toString()
     );
     assert.strictEqual(
       eventTicketAssetData.name.toString(),
-      "testEvent #" + "1",
+      "testEvent #" + "1"
     );
     const verifiedBuffer = Uint8Array.from(Buffer.from("Verified"));
     assert.strictEqual(
       eventTicketAssetData.appDatas?.[0].data.toString(),
       verifiedBuffer.toString()
     );
+  });
+
+  it("verified attendenace cannot reverify", async () => {
+    const verifyAttendanceForVerifiedIxn = await program.methods
+      .verifyAttendee()
+      .accountsPartial({
+        community,
+        event,
+        eventAuthority: eventAuthority.publicKey,
+        owner: eventAttendee1.publicKey,
+        mplCoreProgram: new anchor.web3.PublicKey(
+          "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        ),
+      })
+      .instruction();
+
+    const messageV0VerifyAttendanceForVerified =
+      new anchor.web3.TransactionMessage({
+        instructions: [verifyAttendanceForVerifiedIxn],
+        payerKey: eventAuthority.publicKey,
+        recentBlockhash: (
+          await program.provider.connection.getLatestBlockhash()
+        ).blockhash,
+      }).compileToV0Message([]);
+
+    const txVerifyAttendanceForVerified = new anchor.web3.VersionedTransaction(
+      messageV0VerifyAttendanceForVerified
+    );
+
+    // must manually sign the transaction
+    txVerifyAttendanceForVerified.sign([eventAuthority]);
+    try {
+      await program.provider.connection.sendRawTransaction(
+        txVerifyAttendanceForVerified.serialize()
+      );
+      assert.fail("Transaction should have failed");
+    } catch (error) {
+      const logs = error.logs;
+      assert.ok(logs.some((log: string) => log.includes("Error Code: AlreadyScanned")));
+      assert.ok(logs.some((log: string) => log.includes("Error Number: 6014")));
+      assert.ok(
+        logs.some((log: string) => log.includes("Ticket has been signed already"))
+      );
+    }
   });
 
   it("claim rewards", async () => {
@@ -513,11 +636,100 @@ describe("fosho-program", () => {
       })
       .signers([eventAttendee1])
       .rpc();
-    const eventAttendee1Data = await program.account.attendee.fetch(attendeeRecord1);
-    assert.deepStrictEqual(
-      eventAttendee1Data.status,
-      { claimed: {} }
+    const eventAttendee1Data = await program.account.attendee.fetch(
+      attendeeRecord1
     );
+    assert.deepStrictEqual(eventAttendee1Data.status, { claimed: {} });
+  });
+
+  it("claimed rewards cannot be reclaimed", async () => {
+    const reclaimRewardIxn = await program.methods
+      .claimRewards()
+      .accountsPartial({
+        community,
+        event,
+        claimer: eventAttendee1.publicKey,
+        attendeeRecord: getAttendeeRecord(event, eventAttendee1.publicKey),
+        rewardAccount: null,
+        receiverAccount: null,
+        rewardMint: null,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .instruction();
+      
+    const messageV0ReclaimReward =
+    new anchor.web3.TransactionMessage({
+      instructions: [reclaimRewardIxn],
+      payerKey: eventAttendee1.publicKey,
+      recentBlockhash: (
+        await program.provider.connection.getLatestBlockhash()
+      ).blockhash,
+    }).compileToV0Message([]);
+
+  const txReclaimReward = new anchor.web3.VersionedTransaction(
+    messageV0ReclaimReward
+  );
+
+  // must manually sign the transaction
+  txReclaimReward.sign([eventAttendee1]);
+    try {
+      await program.provider.connection.sendRawTransaction(
+        txReclaimReward.serialize()
+      );
+      assert.fail("Transaction should have failed");
+    } catch (error) {
+      const logs = error.logs;
+      assert.ok(logs.some((log: string) => log.includes("Error Code: AlreadyClaimed")));
+      assert.ok(logs.some((log: string) => log.includes("Error Number: 6009")));
+      assert.ok(
+        logs.some((log: string) => log.includes("this attendee has already claimed the rewards."))
+      );
+    }
+  });
+
+  it("claim rewards fail for unattended claimer", async () => {
+    const claimRewardIxn = await program.methods
+      .claimRewards()
+      .accountsPartial({
+        community,
+        event,
+        claimer: eventAttendee2.publicKey,
+        attendeeRecord: getAttendeeRecord(event, eventAttendee2.publicKey),
+        rewardAccount: null,
+        receiverAccount: null,
+        rewardMint: null,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .instruction();
+      
+    const messageV0ClaimReward =
+    new anchor.web3.TransactionMessage({
+      instructions: [claimRewardIxn],
+      payerKey: eventAttendee2.publicKey,
+      recentBlockhash: (
+        await program.provider.connection.getLatestBlockhash()
+      ).blockhash,
+    }).compileToV0Message([]);
+
+  const txClaimReward = new anchor.web3.VersionedTransaction(
+    messageV0ClaimReward
+  );
+
+  // must manually sign the transaction
+  txClaimReward.sign([eventAttendee2]);
+    try {
+      await program.provider.connection.sendRawTransaction(
+        txClaimReward.serialize()
+      );
+      assert.fail("Transaction should have failed");
+    } catch (error) {
+      const logs = error.logs;
+      assert.ok(logs.some((log: string) => log.includes("Error Code: AttendeeStatusPending")));
+      assert.ok(logs.some((log: string) => log.includes("Error Number: 6006")));
+      assert.ok(
+        logs.some((log: string) => log.includes("The rewards cannot be claimed during the pending status."))
+      );
+    }
   });
 
   it("claim rewards of rejected attendee by community authority", async () => {
@@ -540,9 +752,6 @@ describe("fosho-program", () => {
     const attendeeDataRejected = await program.account.attendee.fetch(
       attendeeRecordRejected
     );
-    assert.deepStrictEqual(
-      attendeeDataRejected.status,
-      { claimed: {} }
-    );
+    assert.deepStrictEqual(attendeeDataRejected.status, { claimed: {} });
   });
 });
