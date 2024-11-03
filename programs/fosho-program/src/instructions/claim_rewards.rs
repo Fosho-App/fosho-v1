@@ -102,6 +102,9 @@ pub fn claim_rewards_handler(ctx: Context<ClaimRewards>) -> Result<()> {
   let community = &ctx.accounts.community;
   let event = &ctx.accounts.event;
 
+  // if event has been cancelled we assume the attendee attended the event
+  // thus, they should be able to claim the reward/commitment_fee
+  // by which the community authority has decided to cancel the event.
   if event.is_cancelled {
     attendee_record.status = AttendeeStatus::Verified;
   }
