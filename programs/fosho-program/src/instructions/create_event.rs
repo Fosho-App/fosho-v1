@@ -26,8 +26,15 @@ pub struct CreateEvent<'info> {
     space = 8 + Event::INIT_SPACE
   )]
   pub event: Account<'info, Event>,
-  #[account(mut)]
-  pub event_collection: Signer<'info>,
+  /// CHECK: event_collection is created.
+  #[account(mut,
+    seeds = [
+      EVENT_PRE_SEED.as_ref(),
+      event.key().as_ref(),
+      EVENT_COLLECTION_SUFFIX_SEED.as_ref(),
+    ],
+    bump,)]
+  pub event_collection: UncheckedAccount<'info>,
   #[account(
     mut,
     seeds = [
@@ -96,6 +103,7 @@ impl<'info> CreateEvent<'info> {
     location: Option<String>,
     virtual_link: Option<String>,
     description: Option<String>,
+    event_collection_bump: u8,
   ) -> Result<()> {
     let mut attribute_list = vec![
       create_attribute("Event Type", format!("{:?}", event_type)),
@@ -145,7 +153,13 @@ impl<'info> CreateEvent<'info> {
       plugin: Plugin::Attributes(Attributes { attribute_list }),
       authority: Some(PluginAuthority::UpdateAuthority),
     }];
-
+    let event_binding = self.event.key();
+    let event_collection_seeds = &[
+      EVENT_PRE_SEED.as_ref(),
+      event_binding.as_ref(),
+      EVENT_COLLECTION_SUFFIX_SEED.as_ref(),
+      &[event_collection_bump],
+    ];
     // Create the Event Collection
     CreateCollectionV2CpiBuilder::new(&self.mpl_core_program.to_account_info())
       .collection(&self.event_collection.to_account_info())
@@ -155,7 +169,7 @@ impl<'info> CreateEvent<'info> {
       .name(name.clone())
       .uri(uri.clone())
       .plugins(collection_plugin)
-      .invoke()?;
+      .invoke_signed(&[event_collection_seeds])?;
 
     Ok(())
   }
@@ -242,6 +256,7 @@ pub fn create_event_handler(
     location,
     virtual_link,
     description,
+    ctx.bumps.event_collection,
   )?;
 
   Ok(())

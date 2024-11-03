@@ -2,6 +2,10 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { FoshoProgram } from "../target/types/fosho_program";
 import crypto from "crypto";
+import { assert } from "chai";
+import { createUmi as basecreateUmi } from '@metaplex-foundation/umi-bundle-tests';
+import { fetchAssetV1, fetchCollectionV1, mplCore } from "@metaplex-foundation/mpl-core";
+import { publicKey } from "@metaplex-foundation/umi";
 
 const sleep = (ms: number) => require("timers/promises").setTimeout(ms);
 
@@ -15,7 +19,7 @@ export function createKnownTestKeypair(knownKey: string) {
     const newKey = anchor.web3.Keypair.fromSeed(
       new Uint8Array(deterministicSalt)
     );
-    console.log(knownKey, "Public Key:", newKey.publicKey.toString());
+    // console.log(knownKey, "Public Key:", newKey.publicKey.toString());
     return newKey;
   } catch (error) {
     throw new Error(`Failed to create keypair: ${error}`);
@@ -24,6 +28,7 @@ export function createKnownTestKeypair(knownKey: string) {
 
 describe("fosho-program", () => {
   // Configure the client to use the local cluster.
+  const createUmi = async () => (await basecreateUmi()).use(mplCore());
   anchor.setProvider(anchor.AnchorProvider.env());
   const program = anchor.workspace.FoshoProgram as Program<FoshoProgram>;
 
@@ -34,21 +39,12 @@ describe("fosho-program", () => {
     program.programId
   );
 
-  console.log("Community pubkey", community.toString());
+  // console.log("Community pubkey", community.toString());
 
   const eventAuthority = createKnownTestKeypair("eventAuthority");
   const eventAttendee1 = createKnownTestKeypair("eventAttendee1");
-  const eventCollection = anchor.web3.Keypair.generate();
-  const eventAsset1 = anchor.web3.Keypair.generate();
-  console.log("eventCollection pubkey", eventCollection.publicKey.toString());
-  console.log("eventAsset1 pubkey", eventAsset1.publicKey.toString());
-
-  let mint = new anchor.web3.PublicKey(
-    "Db9vq4fNEtaTGUATzibXY2NC7hvFTVPH2w6psYBFyUKn"
-  );
-  let ata = new anchor.web3.PublicKey(
-    "4cf8Yu7pLDEGzstmQV6Two476dTvb7hC5u8ZtjwcuzX1"
-  );
+  const eventAttendee2 = createKnownTestKeypair("eventAttendee2");
+  const eventAttendeeRejected = createKnownTestKeypair("eventAttendeeRejected");
 
   const getEvent = (nonce: number) => {
     const [event] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -75,18 +71,55 @@ describe("fosho-program", () => {
     return attendeeRecord;
   };
 
+  const getEventCollection = (
+    event: anchor.web3.PublicKey,
+  ) => {
+    const [attendeeRecord] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("event"), event.toBuffer(), Buffer.from("collection")],
+      program.programId
+    );
+
+    return attendeeRecord;
+  };
+
+  const getEventTicketAsset = (
+    event: anchor.web3.PublicKey,
+    owner: anchor.web3.PublicKey,
+  ) => {
+    const [attendeeRecord] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("event"), event.toBuffer(), owner.toBuffer(), Buffer.from("ticket")],
+      program.programId
+    );
+
+    return attendeeRecord;
+  };
+
+
+  const event = getEvent(0);
+  const attendeeRecord1 = getAttendeeRecord(event, eventAttendee1.publicKey);
+  const attendeeRecord2 = getAttendeeRecord(event, eventAttendee2.publicKey);
+  const attendeeRecordRejected = getAttendeeRecord(
+    event,
+    eventAttendeeRejected.publicKey
+  );
+  // console.log("Provider pubkey", program.provider.publicKey.toString());
+
   it("creates community", async () => {
-    const tx = await program.methods
+    await program.methods
       .createCommunity(seed, "testCommunity")
       .rpc();
-    console.log("Your transaction signature", tx);
-    console.log("Community Seed: ", seed.toString());
+
+    const communityData = await program.account.community.fetch(community);
+    assert.strictEqual(
+      communityData.name,
+      "testCommunity",
+    );
+    assert.strictEqual(
+      communityData.seed.toString(),
+      seed.toString());
   });
 
-  it("creates event, joins event, verify attendance", async () => {
-    const event = getEvent(0);
-    const attendeeRecord = getAttendeeRecord(event, eventAttendee1.publicKey);
-    console.log("Provider pubkey", program.provider.publicKey.toString());
+  it("creates event", async () => {
     const timeNow = Date.now() / 1000;
     const tx = await program.methods
       .createEvent(
@@ -102,9 +135,9 @@ describe("fosho-program", () => {
         // registration starts_at
         new anchor.BN(timeNow + 1),
         // registration ends at
-        new anchor.BN(timeNow + 10),
+        new anchor.BN(timeNow + 100),
         // capacity
-        new anchor.BN(10),
+        new anchor.BN(3),
         // location
         "testLocation",
         // virtual_link
@@ -119,7 +152,6 @@ describe("fosho-program", () => {
         community,
         authority: program.provider.publicKey,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-        eventCollection: eventCollection.publicKey,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),
@@ -127,20 +159,37 @@ describe("fosho-program", () => {
         rewardMint: null,
         senderAccount: null,
       })
-      .signers([eventCollection])
       .rpc();
-    console.log("Your transaction signature", tx);
-
     const eventData = await program.account.event.fetch(event);
-    console.log(eventData);
+    assert.strictEqual(
+      eventData.commitmentFee.toNumber(),
+      0.1* anchor.web3.LAMPORTS_PER_SOL,
+    );
+    assert.strictEqual(
+      eventData.authorityMustSign,
+      true,
+    );
+    const eventCollection = getEventCollection(event);
+    const umi = await createUmi();
+    const eventCollectionData = await fetchCollectionV1(umi, publicKey(eventCollection));
+    assert.strictEqual(
+      eventCollectionData.numMinted,
+      0,
+    );
+    assert.strictEqual(
+      eventCollectionData.name,
+      "testEvent",
+    );
+  
+  });
 
-    console.log("attendeeRecord", attendeeRecord.toString());
-    // sleep for 2 seconds
+  it("joins event - 3 attendees", async () => {
+    // sleep for 2 seconds due to event not starting
     await sleep(2_000);
     await program.provider.connection.confirmTransaction(
       await program.provider.connection.requestAirdrop(
         eventAttendee1.publicKey,
-        10 * anchor.web3.LAMPORTS_PER_SOL
+        1 * anchor.web3.LAMPORTS_PER_SOL
       ),
       "confirmed"
     );
@@ -157,15 +206,14 @@ describe("fosho-program", () => {
         community,
         event,
         eventAuthority: eventAuthority.publicKey,
-        ticket: eventAsset1.publicKey,
         attendee: eventAttendee1.publicKey,
-        eventCollection: eventCollection.publicKey,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),
       })
       .instruction();
 
+    // include the eventAuthority as a signer
     joinEventIxn.keys = joinEventIxn.keys.map((key) => {
       if (key.pubkey.equals(eventAuthority.publicKey)) {
         return {
@@ -185,7 +233,7 @@ describe("fosho-program", () => {
     }).compileToV0Message([]);
 
     const txJoinEvent = new anchor.web3.VersionedTransaction(messageV0);
-    txJoinEvent.sign([eventAsset1, eventAttendee1, eventAuthority]);
+    txJoinEvent.sign([eventAttendee1, eventAuthority]);
 
     await program.provider.connection.confirmTransaction(
       await program.provider.connection.sendRawTransaction(
@@ -193,19 +241,209 @@ describe("fosho-program", () => {
       ),
       "confirmed"
     );
-    console.log("txn sent");
-    const attendeeData = await program.account.attendee.fetch(attendeeRecord);
-    console.log(attendeeData);
 
+    await program.provider.connection.confirmTransaction(
+      await program.provider.connection.requestAirdrop(
+        eventAttendee2.publicKey,
+        1 * anchor.web3.LAMPORTS_PER_SOL
+      ),
+      "confirmed"
+    );
+
+    const joinEventIxn2 = await program.methods
+      .joinEvent()
+      .accountsPartial({
+        community,
+        event,
+        eventAuthority: eventAuthority.publicKey,
+        attendee: eventAttendee2.publicKey,
+        mplCoreProgram: new anchor.web3.PublicKey(
+          "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        ),
+      })
+      .instruction();
+
+    // include the eventAuthority as a signer
+    joinEventIxn2.keys = joinEventIxn2.keys.map((key) => {
+      if (key.pubkey.equals(eventAuthority.publicKey)) {
+        return {
+          pubkey: key.pubkey,
+          isSigner: true,
+          isWritable: false,
+        };
+      }
+      return key;
+    });
+
+    const messageV02 = new anchor.web3.TransactionMessage({
+      instructions: [joinEventIxn2],
+      payerKey: eventAttendee2.publicKey,
+      recentBlockhash: (await program.provider.connection.getLatestBlockhash())
+        .blockhash,
+    }).compileToV0Message([]);
+
+    const txJoinEvent2 = new anchor.web3.VersionedTransaction(messageV02);
+    txJoinEvent2.sign([eventAttendee2, eventAuthority]);
+
+    await program.provider.connection.confirmTransaction(
+      await program.provider.connection.sendRawTransaction(
+        txJoinEvent2.serialize()
+      ),
+      "confirmed"
+    );
+
+    await program.provider.connection.confirmTransaction(
+      await program.provider.connection.requestAirdrop(
+        eventAttendeeRejected.publicKey,
+        1 * anchor.web3.LAMPORTS_PER_SOL
+      ),
+      "confirmed"
+    );
+    const joinEventIxnRejected = await program.methods
+      .joinEvent()
+      .accountsPartial({
+        community,
+        event,
+        eventAuthority: eventAuthority.publicKey,
+        attendee: eventAttendeeRejected.publicKey,
+        mplCoreProgram: new anchor.web3.PublicKey(
+          "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        ),
+      })
+      .instruction();
+
+    // include the eventAuthority as a signer
+    joinEventIxnRejected.keys = joinEventIxnRejected.keys.map((key) => {
+      if (key.pubkey.equals(eventAuthority.publicKey)) {
+        return {
+          pubkey: key.pubkey,
+          isSigner: true,
+          isWritable: false,
+        };
+      }
+      return key;
+    });
+
+    const messageV0Rejected = new anchor.web3.TransactionMessage({
+      instructions: [joinEventIxnRejected],
+      payerKey: eventAttendeeRejected.publicKey,
+      recentBlockhash: (await program.provider.connection.getLatestBlockhash())
+        .blockhash,
+    }).compileToV0Message([]);
+
+    const txJoinEventRejected = new anchor.web3.VersionedTransaction(
+      messageV0Rejected
+    );
+    txJoinEventRejected.sign([eventAttendeeRejected, eventAuthority]);
+
+    await program.provider.connection.confirmTransaction(
+      await program.provider.connection.sendRawTransaction(
+        txJoinEventRejected.serialize()
+      ),
+      "confirmed"
+    );
+
+    const umi = await createUmi();
+    const eventCollection = getEventCollection(event);
+    const eventCollectionData = await fetchCollectionV1(umi, publicKey(eventCollection));
+    assert.strictEqual(
+      eventCollectionData.numMinted,
+      3,
+    );
+    assert.strictEqual(
+      eventCollectionData.currentSize,
+     3,
+    );
+    const attendeeAsset =  getEventTicketAsset(event, eventAttendee1.publicKey);
+    const eventTicketAssetData = await fetchAssetV1(umi, publicKey(attendeeAsset));
+    assert.strictEqual(
+      eventTicketAssetData.owner.toString(),
+      eventAttendee1.publicKey.toString(),
+    );
+    assert.strictEqual(
+      eventTicketAssetData.name.toString(),
+      "testEvent #" + "1",
+    );
+
+    assert.strictEqual(
+      eventTicketAssetData.updateAuthority.type,
+      "Collection",
+    );
+    assert.strictEqual(
+      eventTicketAssetData.updateAuthority.address.toString(),
+      eventCollection.toString(),
+    );
+
+    const attendeeDataRejected = await program.account.attendee.fetch(
+      attendeeRecordRejected
+    );
+    assert.strictEqual(
+      attendeeDataRejected.owner.toString(),
+      eventAttendeeRejected.publicKey.toString(), 
+    );
+    const attendeeData = await program.account.attendee.fetch(attendeeRecord1);
+    assert.strictEqual(
+      attendeeData.owner.toString(),
+      eventAttendee1.publicKey.toString(), 
+    );
+    assert.deepStrictEqual(
+      attendeeData.status,
+      { pending: {} }
+    );
+  });
+
+  it("reject attendenace", async () => {
+    const rejectAttendanceIxn = await program.methods
+      .rejectAttendee()
+      .accountsPartial({
+        community,
+        event,
+        eventAuthority: eventAuthority.publicKey,
+        owner: eventAttendeeRejected.publicKey,
+        mplCoreProgram: new anchor.web3.PublicKey(
+          "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        ),
+      })
+      .instruction();
+
+    const messageV0RejectAttendance = new anchor.web3.TransactionMessage({
+      instructions: [rejectAttendanceIxn],
+      payerKey: eventAuthority.publicKey,
+      recentBlockhash: (await program.provider.connection.getLatestBlockhash())
+        .blockhash,
+    }).compileToV0Message([]);
+
+    const txRejectAttendance = new anchor.web3.VersionedTransaction(
+      messageV0RejectAttendance
+    );
+    // must manually sign the transaction
+    txRejectAttendance.sign([eventAuthority]);
+
+    await program.provider.connection.confirmTransaction(
+      await program.provider.connection.sendRawTransaction(
+        txRejectAttendance.serialize()
+      ),
+      "confirmed"
+    );
+    const attendeeDataRejectedData = await program.account.attendee.fetch(attendeeRecordRejected);
+    assert.strictEqual(
+      attendeeDataRejectedData.owner.toString(),
+      eventAttendeeRejected.publicKey.toString(), 
+    );
+    assert.deepStrictEqual(
+      attendeeDataRejectedData.status,
+      { rejected: {} }
+    );
+  });
+
+  it("verify attendenace", async () => {
     const verifyAttendanceIxn = await program.methods
       .verifyAttendee()
       .accountsPartial({
         community,
         event,
         eventAuthority: eventAuthority.publicKey,
-        ticket: eventAsset1.publicKey,
         owner: eventAttendee1.publicKey,
-        eventCollection: eventCollection.publicKey,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),
@@ -222,6 +460,7 @@ describe("fosho-program", () => {
     const txVerifyAttendance = new anchor.web3.VersionedTransaction(
       messageV0VerifyAttendance
     );
+    // must manually sign the transaction
     txVerifyAttendance.sign([eventAuthority]);
 
     await program.provider.connection.confirmTransaction(
@@ -230,56 +469,80 @@ describe("fosho-program", () => {
       ),
       "confirmed"
     );
-    console.log("txn sent");
-    const attendeeData2 = await program.account.attendee.fetch(attendeeRecord);
-    console.log(attendeeData2);
+    
+    const eventAttendee1Data = await program.account.attendee.fetch(attendeeRecord1);
+    assert.strictEqual(
+      eventAttendee1Data.owner.toString(),
+      eventAttendee1.publicKey.toString(), 
+    );
+    assert.deepStrictEqual(
+      eventAttendee1Data.status,
+      { verified: {} }
+    );
+
+    const umi = await createUmi();
+    const attendeeAsset = getEventTicketAsset(event, eventAttendee1.publicKey);
+    const eventTicketAssetData = await fetchAssetV1(umi, publicKey(attendeeAsset));
+    assert.strictEqual(
+      eventTicketAssetData.owner.toString(),
+      eventAttendee1.publicKey.toString(),
+    );
+    assert.strictEqual(
+      eventTicketAssetData.name.toString(),
+      "testEvent #" + "1",
+    );
+    const verifiedBuffer = Uint8Array.from(Buffer.from("Verified"));
+    assert.strictEqual(
+      eventTicketAssetData.appDatas?.[0].data.toString(),
+      verifiedBuffer.toString()
+    );
   });
-  // it("creates event with 5 attendees and no reward", async () => {
-  //   const nonce = 0
-  //   const event = getEvent(0)
 
-  //   const tx = await program.methods.createEvent(
-  //     2,
-  //     new anchor.BN(0.1 * anchor.web3.LAMPORTS_PER_SOL),
-  //     new anchor.BN(Date.now()/1000 + 86400),
-  //     null,
-  //     new anchor.BN(0),
-  //   ).accountsPartial({
-  //     community,
-  //     tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-  //     rewardAccount: null,
-  //     rewardMint: null,
-  //     senderAccount: null
-  //   })
-  //   .rpc();
-  //   console.log("Your transaction signature", tx);
+  it("claim rewards", async () => {
+    await program.methods
+      .claimRewards()
+      .accountsPartial({
+        community,
+        event,
+        claimer: eventAttendee1.publicKey,
+        attendeeRecord: getAttendeeRecord(event, eventAttendee1.publicKey),
+        rewardAccount: null,
+        receiverAccount: null,
+        rewardMint: null,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .signers([eventAttendee1])
+      .rpc();
+    const eventAttendee1Data = await program.account.attendee.fetch(attendeeRecord1);
+    assert.deepStrictEqual(
+      eventAttendee1Data.status,
+      { claimed: {} }
+    );
+  });
 
-  //   const eventData = await program.account.event.fetch(event)
-  //   console.log(eventData)
-  // })
-
-  // it("creates event with 2 attendees and 400 TOKEN reward each", async () => {
-  //   const nonce = 1;
-  //   const event = getEvent(nonce)
-  //   const rewardAccount = anchor.utils.token.associatedAddress({mint, owner: event});
-
-  //   const tx = await program.methods.createEvent(
-  //     5,
-  //     new anchor.BN(0.1 * anchor.web3.LAMPORTS_PER_SOL),
-  //     new anchor.BN(Date.now()/1000 + 86400),
-  //     null,
-  //     new anchor.BN(400),
-  //   ).accountsPartial({
-  //     community,
-  //     tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-  //     rewardAccount,
-  //     rewardMint: mint,
-  //     senderAccount: ata
-  //   })
-  //   .rpc();
-  //   console.log("Your transaction signature", tx);
-
-  //   const eventData = await program.account.event.fetch(event)
-  //   console.log(eventData)
-  // })
+  it("claim rewards of rejected attendee by community authority", async () => {
+    await program.methods
+      .claimRewards()
+      .accountsPartial({
+        community,
+        event,
+        claimer: program.provider.publicKey,
+        attendeeRecord: getAttendeeRecord(
+          event,
+          eventAttendeeRejected.publicKey
+        ),
+        rewardAccount: null,
+        receiverAccount: null,
+        rewardMint: null,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+    const attendeeDataRejected = await program.account.attendee.fetch(
+      attendeeRecordRejected
+    );
+    assert.deepStrictEqual(
+      attendeeDataRejected.status,
+      { claimed: {} }
+    );
+  });
 });

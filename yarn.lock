@@ -184,6 +184,19 @@
     "@metaplex-foundation/umi-serializer-data-view" "^0.9.2"
     "@metaplex-foundation/umi-transaction-factory-web3js" "^0.9.2"
 
+"@metaplex-foundation/umi-bundle-tests@^0.9.2":
+  version "0.9.2"
+  resolved "https://registry.yarnpkg.com/@metaplex-foundation/umi-bundle-tests/-/umi-bundle-tests-0.9.2.tgz#6e773de03f26d7b7bc34545e6414365026890b99"
+  integrity sha512-YZBf1Lve+1G8AG0rhPyJSqAeBiJM6jSIWW6mwnhdYAQSFTZrnCKLIkL72yeUVeGdyfuCEnVpZOx27LhnYmI+8Q==
+  dependencies:
+    "@metaplex-foundation/umi-eddsa-web3js" "^0.9.2"
+    "@metaplex-foundation/umi-http-fetch" "^0.9.2"
+    "@metaplex-foundation/umi-program-repository" "^0.9.2"
+    "@metaplex-foundation/umi-rpc-web3js" "^0.9.2"
+    "@metaplex-foundation/umi-serializer-data-view" "^0.9.2"
+    "@metaplex-foundation/umi-storage-mock" "^0.9.2"
+    "@metaplex-foundation/umi-transaction-factory-web3js" "^0.9.2"
+
 "@metaplex-foundation/umi-downloader-http@^0.9.2":
   version "0.9.2"
   resolved "https://registry.yarnpkg.com/@metaplex-foundation/umi-downloader-http/-/umi-downloader-http-0.9.2.tgz#df84b11df9141854ca1cf7c6c8374658e67de767"
@@ -267,6 +280,11 @@
     "@metaplex-foundation/umi-serializers-core" "^0.8.9"
     "@metaplex-foundation/umi-serializers-encodings" "^0.8.9"
     "@metaplex-foundation/umi-serializers-numbers" "^0.8.9"
+
+"@metaplex-foundation/umi-storage-mock@^0.9.2":
+  version "0.9.2"
+  resolved "https://registry.yarnpkg.com/@metaplex-foundation/umi-storage-mock/-/umi-storage-mock-0.9.2.tgz#4b3558ed4b22ce1fadd962c05cd8afb0b63d2f04"
+  integrity sha512-Om7m1xkVGYyzbXHLVEaX0o2u42dZitGS4xkASj8me/RvUor0A5Sx1HHLNZWiZIFnmtAKP7J8ZDV2dp1iddxtCQ==
 
 "@metaplex-foundation/umi-transaction-factory-web3js@^0.9.2":
   version "0.9.2"

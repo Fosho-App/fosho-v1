@@ -14,6 +14,12 @@ use mpl_core::{
 pub struct RejectAttendee<'info> {
   #[account(
     mut,
+    seeds = [
+      ATTENDEE_PRE_SEED.as_ref(),
+      event.key().as_ref(),
+      owner.key().as_ref()
+    ],
+    bump= attendee_record.bump,
     has_one = event,
     has_one = owner,
   )]
@@ -38,11 +44,24 @@ pub struct RejectAttendee<'info> {
   pub community: Box<Account<'info, Community>>,
   #[account(
       mut,
+      seeds = [
+        EVENT_PRE_SEED.as_ref(),
+        event.key().as_ref(),
+        EVENT_COLLECTION_SUFFIX_SEED.as_ref(),
+      ],
+      bump,
       constraint = event_collection.update_authority == community.key(),
   )]
   pub event_collection: Box<Account<'info, BaseCollectionV1>>,
   #[account(
       mut,
+      seeds = [
+        EVENT_PRE_SEED.as_ref(),
+        event.key().as_ref(),
+        owner.key().as_ref(),
+        TICKET_SUFFIX_SEED.as_ref(),
+      ],
+      bump,
       constraint = ticket.owner == owner.key(),
       constraint = ticket.update_authority == UpdateAuthority::Collection(event_collection.key()),
   )]
@@ -87,7 +106,7 @@ impl<'info> RejectAttendee<'info> {
 
     UpdatePluginV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
       .asset(&self.ticket.to_account_info())
-      .collection(Some(&self.event.to_account_info()))
+      .collection(Some(&self.event_collection.to_account_info()))
       .payer(&self.event_authority.to_account_info())
       .authority(Some(&self.community.to_account_info()))
       .system_program(&self.system_program.to_account_info())

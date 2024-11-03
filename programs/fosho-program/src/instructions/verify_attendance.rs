@@ -29,7 +29,7 @@ pub struct VerifyAttendee<'info> {
       event.key().as_ref(),
       owner.key().as_ref()
     ],
-    bump= attendee_record.bump,
+    bump = attendee_record.bump,
     has_one = event,
     has_one = owner,
   )]
@@ -54,11 +54,24 @@ pub struct VerifyAttendee<'info> {
   pub community: Box<Account<'info, Community>>,
   #[account(
       mut,
+      seeds = [
+        EVENT_PRE_SEED.as_ref(),
+        event.key().as_ref(),
+        EVENT_COLLECTION_SUFFIX_SEED.as_ref(),
+      ],
+      bump,
       constraint = event_collection.update_authority == community.key(),
   )]
   pub event_collection: Box<Account<'info, BaseCollectionV1>>,
   #[account(
       mut,
+      seeds = [
+        EVENT_PRE_SEED.as_ref(),
+        event.key().as_ref(),
+        owner.key().as_ref(),
+        TICKET_SUFFIX_SEED.as_ref(),
+      ],
+      bump,
       constraint = ticket.owner == owner.key(),
       constraint = ticket.update_authority == UpdateAuthority::Collection(event_collection.key()),
   )]
@@ -102,7 +115,7 @@ impl<'info> VerifyAttendee<'info> {
       require!(current_unix_ts <= event_ends_at, FoshoErrors::EventEnded);
     }
 
-    let data: Vec<u8> = "Scanned".as_bytes().to_vec();
+    let data: Vec<u8> = "Verified".as_bytes().to_vec();
 
     let signer_seeds = &[
       COMMUNITY_PRE_SEED.as_ref(),

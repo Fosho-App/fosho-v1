@@ -54,6 +54,12 @@ pub struct JoinEvent<'info> {
   pub community: Box<Account<'info, Community>>,
   #[account(
       mut,
+      seeds = [
+        EVENT_PRE_SEED.as_ref(),
+        event.key().as_ref(),
+        EVENT_COLLECTION_SUFFIX_SEED.as_ref(),
+      ],
+      bump,
       constraint = event_collection.update_authority == community.key(),
   )]
   pub event_collection: Box<Account<'info, BaseCollectionV1>>,
@@ -62,8 +68,16 @@ pub struct JoinEvent<'info> {
   pub event_authority: AccountInfo<'info>,
   #[account(mut)]
   pub attendee: Signer<'info>,
-  #[account(mut)]
-  pub ticket: Signer<'info>,
+  /// CHECK: safe because the ticket is created in this instruction
+  #[account(mut,
+    seeds = [
+      EVENT_PRE_SEED.as_ref(),
+      event.key().as_ref(),
+      attendee.key().as_ref(),
+      TICKET_SUFFIX_SEED.as_ref(),
+    ],
+    bump)]
+  pub ticket: UncheckedAccount<'info>,
   pub system_program: Program<'info, System>,
   #[account(address = MPL_CORE_ID)]
   /// CHECK: This is checked by the address constraint
@@ -82,7 +96,7 @@ impl<'info> JoinEvent<'info> {
     CpiContext::new(cpi_program, cpi_accounts)
   }
 
-  pub fn create_event_ticket(&self) -> Result<()> {
+  pub fn create_event_ticket(&self, ticket_bump: u8) -> Result<()> {
     // Check that the maximum number of tickets has not been reached yet
     let (_, collection_attribute_list, _) = fetch_plugin::<BaseCollectionV1, Attributes>(
       &self.event_collection.to_account_info(),
@@ -133,6 +147,16 @@ impl<'info> JoinEvent<'info> {
       &[self.community.bump],
     ];
 
+    let event_binding = self.event.key();
+    let attendee_binding = self.attendee.key();
+    let ticket_seeds = &[
+      EVENT_PRE_SEED.as_ref(),
+      event_binding.as_ref(),
+      attendee_binding.as_ref(),
+      TICKET_SUFFIX_SEED.as_ref(),
+      &[ticket_bump],
+    ];
+
     // we derive the name from the collection but add Ticket + No.
     let name = format!(
       "{} #{}",
@@ -152,7 +176,7 @@ impl<'info> JoinEvent<'info> {
       .uri(uri)
       .plugins(ticket_plugins.0)
       .external_plugin_adapters(ticket_plugins.1)
-      .invoke_signed(&[signer_seeds])?;
+      .invoke_signed(&[signer_seeds, ticket_seeds])?;
 
     Ok(())
   }
@@ -188,7 +212,7 @@ pub fn join_event_handler(ctx: Context<JoinEvent>) -> Result<()> {
   // require_gte!(event.registration_end_time, current_time, FoshoErrors::RegistrationTimeExpired);
   // require_gt!(event.max_attendees, event.current_attendees, FoshoErrors::MaxAttendeesAlreadyJoined);
 
-  ctx.accounts.create_event_ticket()?;
+  ctx.accounts.create_event_ticket(ctx.bumps.ticket)?;
 
   if event.commitment_fee.gt(&0) {
     transfer(ctx.accounts.transfer_commitment_fee(), event.commitment_fee)?;

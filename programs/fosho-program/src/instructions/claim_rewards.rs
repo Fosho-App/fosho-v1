@@ -14,7 +14,12 @@ use mpl_core::{
 pub struct ClaimRewards<'info> {
   #[account(
     mut,
-    has_one = event
+    seeds = [
+      ATTENDEE_PRE_SEED.as_ref(),
+      event.key().as_ref(),
+      attendee_record.owner.as_ref()
+    ],
+    bump = attendee_record.bump,
   )]
   pub attendee_record: Box<Account<'info, Attendee>>,
   #[account(
@@ -55,6 +60,12 @@ pub struct ClaimRewards<'info> {
   pub receiver_account: Option<InterfaceAccount<'info, TokenAccount>>,
   #[account(
       mut,
+      seeds = [
+        EVENT_PRE_SEED.as_ref(),
+        event.key().as_ref(),
+        EVENT_COLLECTION_SUFFIX_SEED.as_ref(),
+      ],
+      bump,
       constraint = event_collection.update_authority == community.key(),
   )]
   pub event_collection: Box<Account<'info, BaseCollectionV1>>,
