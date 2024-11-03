@@ -307,15 +307,12 @@ pub fn join_event_handler(ctx: Context<JoinEvent>) -> Result<()> {
   attendee_record.bump = ctx.bumps.attendee_record;
 
   match event.event_version {
-    EventVersion::NftGated(NftData {
-      collection_mint: _,
-      verified_creator: _,
-    }) => {
+    EventVersion::Regular => {}
+    _ => {
       ctx
         .accounts
         .validate_event_version(&ctx.remaining_accounts)?;
     }
-    _ => {}
   }
   Ok(())
 }
