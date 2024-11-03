@@ -40,4 +40,26 @@ pub enum FoshoErrors {
   EventHasNotStarted,
   #[msg("Event has ended")]
   EventEnded,
+  #[msg("Invalid Collection")]
+  InvalidCollection,
+  #[msg("Invalid Collection Details")]
+  InvalidCollectionDetails,
+  #[msg("Nft Not Verified")]
+  NftNotVerified,
+  #[msg("Collection Key is Missing")]
+  CollectionMissing,
+  #[msg("A verified creator is missing")]
+  VerifiedCreatorMissing,
+  #[msg("Invalid nft creator")]
+  InvalidCreator,
+  #[msg("No creators on metadata")]
+  NoCreatorsPresentOnMetadata,
+  #[msg("Public Key mismatch")]
+  PublicKeyMismatch,
+  #[msg("Incorrect account owner")]
+  WrongAccountOwner,
+  #[msg("Not enough remaining accounts provided")]
+  NotEnoughRemainingAccounts,
+  #[msg("User may not have enough tokens or incorrect data has been supplied")]
+  InvalidTokenDetails,
 }

@@ -27,11 +27,10 @@ pub struct VerifyAttendee<'info> {
     seeds = [
       ATTENDEE_PRE_SEED.as_ref(),
       event.key().as_ref(),
-      owner.key().as_ref()
+      attendee_record.owner.key().as_ref()
     ],
     bump = attendee_record.bump,
     has_one = event,
-    has_one = owner,
   )]
   pub attendee_record: Box<Account<'info, Attendee>>,
   #[account(
@@ -68,7 +67,7 @@ pub struct VerifyAttendee<'info> {
       seeds = [
         EVENT_PRE_SEED.as_ref(),
         event.key().as_ref(),
-        owner.key().as_ref(),
+        attendee_record.owner.key().as_ref(),
         TICKET_SUFFIX_SEED.as_ref(),
       ],
       bump,
@@ -122,6 +121,7 @@ impl<'info> VerifyAttendee<'info> {
       self.community.seed.as_ref(),
       &[self.community.bump],
     ];
+
     // The event authority is the `signer` of this instruction.
     WriteExternalPluginAdapterDataV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
       .asset(&self.ticket.to_account_info())

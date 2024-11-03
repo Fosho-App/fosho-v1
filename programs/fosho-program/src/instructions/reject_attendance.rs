@@ -17,11 +17,10 @@ pub struct RejectAttendee<'info> {
     seeds = [
       ATTENDEE_PRE_SEED.as_ref(),
       event.key().as_ref(),
-      owner.key().as_ref()
+      attendee_record.owner.key().as_ref(),
     ],
     bump= attendee_record.bump,
     has_one = event,
-    has_one = owner,
   )]
   pub attendee_record: Box<Account<'info, Attendee>>,
   #[account(
@@ -58,7 +57,7 @@ pub struct RejectAttendee<'info> {
       seeds = [
         EVENT_PRE_SEED.as_ref(),
         event.key().as_ref(),
-        owner.key().as_ref(),
+        attendee_record.owner.key().as_ref(),
         TICKET_SUFFIX_SEED.as_ref(),
       ],
       bump,

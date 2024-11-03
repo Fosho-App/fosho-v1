@@ -3,8 +3,9 @@ use crate::{
   error::FoshoErrors,
   state::*,
   utils::{
-    create_attribute, create_ticket_plugins, get_capacity_from_attributes,
-    get_reg_ends_at_from_attributes, get_reg_starts_at_from_attributes,
+    assert_is_ata, create_attribute, create_ticket_plugins, get_capacity_from_attributes,
+    get_reg_ends_at_from_attributes, get_reg_starts_at_from_attributes, get_spl_token_amount,
+    validate_nft_collection, validate_verified_nft_creator,
   },
 };
 use anchor_lang::{
@@ -12,6 +13,7 @@ use anchor_lang::{
   system_program::{transfer, Transfer},
 };
 
+use anchor_spl::token_interface::TokenInterface;
 use mpl_core::{
   accounts::BaseCollectionV1,
   fetch_plugin,
@@ -82,6 +84,7 @@ pub struct JoinEvent<'info> {
   #[account(address = MPL_CORE_ID)]
   /// CHECK: This is checked by the address constraint
   pub mpl_core_program: UncheckedAccount<'info>,
+  pub token_program: Interface<'info, TokenInterface>,
 }
 
 impl<'info> JoinEvent<'info> {
@@ -180,6 +183,80 @@ impl<'info> JoinEvent<'info> {
 
     Ok(())
   }
+
+  pub fn validate_event_version<'a>(&self, remaining_accounts: &[AccountInfo<'a>]) -> Result<()> {
+    let mut remaining_accounts_counter = 0;
+
+    match &self.event.event_version {
+      EventVersion::NftGated(nft_data) => {
+        let mut validation_results = vec![];
+        // Check if we have enough remaining accounts
+        if remaining_accounts.len() < 3 {
+          return Err(FoshoErrors::NotEnoughRemainingAccounts.into());
+        }
+        let mint_account = &remaining_accounts[remaining_accounts_counter];
+        remaining_accounts_counter += 1;
+        let mint_account_key = mint_account.key();
+        let ata_mint_account = &remaining_accounts[remaining_accounts_counter];
+        remaining_accounts_counter += 1;
+        let mint_metadata_account = &remaining_accounts[remaining_accounts_counter];
+
+        assert_is_ata(
+          ata_mint_account,
+          &self.attendee.key(),
+          &mint_account_key,
+          true,
+          &self.token_program.key(),
+        )?;
+        if let Some(verified_creator) = nft_data.verified_creator {
+          validation_results
+            .push(validate_verified_nft_creator(mint_metadata_account, &verified_creator).is_ok());
+        }
+        if let Some(collection_mint) = nft_data.collection_mint {
+          validation_results
+            .push(validate_nft_collection(mint_metadata_account, collection_mint).is_ok());
+        }
+        if !validation_results.iter().any(|&x| x) {
+          return Err(FoshoErrors::InvalidCollectionDetails.into());
+        }
+      }
+      EventVersion::TokenGated(token_data) => {
+        let mut validation_results = vec![];
+        // Check if we have enough remaining accounts
+        if remaining_accounts.len() < 2 {
+          return Err(FoshoErrors::NotEnoughRemainingAccounts.into());
+        }
+
+        let mint_account = &remaining_accounts[remaining_accounts_counter];
+        remaining_accounts_counter += 1;
+        let mint_account_key = mint_account.key();
+        let ata_mint_account = &remaining_accounts[remaining_accounts_counter];
+
+        assert_is_ata(
+          ata_mint_account,
+          &self.attendee.key(),
+          &mint_account_key,
+          true,
+          &self.token_program.key(),
+        )?;
+
+        if let Some(mint) = token_data.mint {
+          validation_results.push(mint == mint_account_key);
+        }
+        if let Some(min_amount) = token_data.minimum_amount {
+          let owned_amount = get_spl_token_amount(&ata_mint_account)?;
+          validation_results.push(owned_amount >= min_amount);
+        }
+
+        if !validation_results.iter().any(|&x| x) {
+          return Err(FoshoErrors::InvalidTokenDetails.into());
+        }
+      }
+      _ => {} // Regular events always pass the validation
+    }
+
+    Ok(())
+  }
 }
 
 pub fn join_event_handler(ctx: Context<JoinEvent>) -> Result<()> {
@@ -229,5 +306,16 @@ pub fn join_event_handler(ctx: Context<JoinEvent>) -> Result<()> {
   attendee_record.status = AttendeeStatus::Pending;
   attendee_record.bump = ctx.bumps.attendee_record;
 
+  match event.event_version {
+    EventVersion::NftGated(NftData {
+      collection_mint: _,
+      verified_creator: _,
+    }) => {
+      ctx
+        .accounts
+        .validate_event_version(&ctx.remaining_accounts)?;
+    }
+    _ => {}
+  }
   Ok(())
 }

@@ -190,6 +190,7 @@ pub fn create_event_handler(
   location: Option<String>,
   virtual_link: Option<String>,
   description: Option<String>,
+  event_version: EventVersion,
   reward_per_user: u64,
   // event_authorities can sign join_event ixn
   // and the verify_attendance ixn
@@ -221,6 +222,7 @@ pub fn create_event_handler(
   event.reward_per_user = reward_per_user;
   event.authority_must_sign = authority_must_sign;
   event.event_authorities = event_authorities;
+  event.event_version = event_version;
 
   let community_mut = &mut ctx.accounts.community;
   community_mut.events_count += 1;

@@ -143,6 +143,7 @@ describe("fosho-program", () => {
         null,
         // description
         "testDescription",
+        { regular: {} },
         new anchor.BN(0),
         [eventAuthority.publicKey],
         true
@@ -199,6 +200,7 @@ describe("fosho-program", () => {
         event,
         eventAuthority: eventAuthority.publicKey,
         attendee: eventAttendee1.publicKey,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),
@@ -249,6 +251,7 @@ describe("fosho-program", () => {
         event,
         eventAuthority: eventAuthority.publicKey,
         attendee: eventAttendee2.publicKey,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),
@@ -298,6 +301,7 @@ describe("fosho-program", () => {
         event,
         eventAuthority: eventAuthority.publicKey,
         attendee: eventAttendeeRejected.publicKey,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),
@@ -386,6 +390,7 @@ describe("fosho-program", () => {
         event,
         eventAuthority: eventAuthority.publicKey,
         attendee: eventAttendee1.publicKey,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),
@@ -433,6 +438,7 @@ describe("fosho-program", () => {
         community,
         event,
         eventAuthority: eventAuthority.publicKey,
+        attendeeRecord: attendeeRecordRejected,
         owner: eventAttendeeRejected.publicKey,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
@@ -477,6 +483,7 @@ describe("fosho-program", () => {
         event,
         eventAuthority: eventAuthority.publicKey,
         owner: eventAttendeeRejected.publicKey,
+        attendeeRecord: attendeeRecordRejected,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),
@@ -521,6 +528,7 @@ describe("fosho-program", () => {
         event,
         eventAuthority: eventAuthority.publicKey,
         owner: eventAttendee1.publicKey,
+        attendeeRecord: attendeeRecord1,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),
@@ -585,6 +593,7 @@ describe("fosho-program", () => {
         event,
         eventAuthority: eventAuthority.publicKey,
         owner: eventAttendee1.publicKey,
+        attendeeRecord: attendeeRecord1,
         mplCoreProgram: new anchor.web3.PublicKey(
           "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
         ),

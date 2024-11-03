@@ -6,6 +6,7 @@ declare_id!("GZNvuxENwSG5jAsCJVLvVrhXyoF1ong3Gx98YAwKfhZe");
 mod instructions;
 use instructions::*;
 use state::EventType;
+use state::EventVersion;
 pub mod constant;
 pub mod error;
 pub mod state;
@@ -40,6 +41,7 @@ pub mod fosho_program {
     location: Option<String>,
     virtual_link: Option<String>,
     description: Option<String>,
+    event_version: EventVersion,
     reward_per_user: u64,
     // event_authorities can sign join_event ixn
     // and the verify_attendance ixn
@@ -63,6 +65,7 @@ pub mod fosho_program {
       location,
       virtual_link,
       description,
+      event_version,
       reward_per_user,
       event_authorities,
       authority_must_sign,
