@@ -1,35 +1,25 @@
-use crate::{
-  constant::*,
-  error::FoshoErrors,
-  state::*,
-  utils::{
-    check_if_already_scanned, get_event_ends_at_from_attributes,
-    get_event_starts_at_from_attributes,
-  },
-};
+use crate::{constant::*, error::FoshoErrors, state::*, utils::check_if_already_scanned};
 use anchor_lang::prelude::*;
 
 use mpl_core::{
   accounts::{BaseAssetV1, BaseCollectionV1},
-  fetch_plugin,
   instructions::{UpdatePluginV1CpiBuilder, WriteExternalPluginAdapterDataV1CpiBuilder},
   types::{
-    Attributes, ExternalPluginAdapterKey, PermanentFreezeDelegate, Plugin, PluginAuthority,
-    PluginType, UpdateAuthority,
+    ExternalPluginAdapterKey, PermanentFreezeDelegate, Plugin, PluginAuthority, UpdateAuthority,
   },
   ID as MPL_CORE_ID,
 };
 
 #[derive(Accounts)]
-pub struct VerifyAttendee<'info> {
+pub struct RejectAttendee<'info> {
   #[account(
     mut,
     seeds = [
       ATTENDEE_PRE_SEED.as_ref(),
       event.key().as_ref(),
-      attendee_record.owner.key().as_ref()
+      attendee_record.owner.key().as_ref(),
     ],
-    bump = attendee_record.bump,
+    bump= attendee_record.bump,
     has_one = event,
   )]
   pub attendee_record: Box<Account<'info, Attendee>>,
@@ -85,36 +75,12 @@ pub struct VerifyAttendee<'info> {
   pub mpl_core_program: UncheckedAccount<'info>,
 }
 
-impl<'info> VerifyAttendee<'info> {
+impl<'info> RejectAttendee<'info> {
   pub fn scan_ticket(&self) -> Result<()> {
     // check if community authority scanned
     check_if_already_scanned(self.ticket.to_account_info(), &self.community.key())?;
 
-    // If we get here, no authorities have scanned yet, so we can continue
-    let (_, collection_attribute_list, _) = fetch_plugin::<BaseCollectionV1, Attributes>(
-      &self.event_collection.to_account_info(),
-      PluginType::Attributes,
-    )?;
-
-    let event_starts_at =
-      get_event_starts_at_from_attributes(&collection_attribute_list.attribute_list)?;
-
-    let event_ends_at =
-      get_event_ends_at_from_attributes(&collection_attribute_list.attribute_list)?;
-
-    let current_unix_ts = Clock::get()?.unix_timestamp as u64;
-    if event_starts_at.ne(&0) {
-      require!(
-        current_unix_ts >= event_starts_at,
-        FoshoErrors::EventHasNotStarted
-      );
-    }
-
-    if event_ends_at.ne(&0) {
-      require!(current_unix_ts <= event_ends_at, FoshoErrors::EventEnded);
-    }
-
-    let data: Vec<u8> = "Verified".as_bytes().to_vec();
+    let data: Vec<u8> = "Rejected".as_bytes().to_vec();
 
     let signer_seeds = &[
       COMMUNITY_PRE_SEED.as_ref(),
@@ -152,11 +118,9 @@ impl<'info> VerifyAttendee<'info> {
   }
 }
 
-pub fn verify_attendee_handler(ctx: Context<VerifyAttendee>) -> Result<()> {
+pub fn reject_attendee_handler(ctx: Context<RejectAttendee>) -> Result<()> {
   let attendee_record = &mut ctx.accounts.attendee_record;
   let event = &ctx.accounts.event;
-
-  require!(!event.is_cancelled, FoshoErrors::EventCancelled);
 
   match attendee_record.status {
     AttendeeStatus::Pending => {}
@@ -173,7 +137,6 @@ pub fn verify_attendee_handler(ctx: Context<VerifyAttendee>) -> Result<()> {
 
   let is_community_authority =
     ctx.accounts.event_authority.key() == ctx.accounts.community.authority;
-
   if !is_community_authority {
     require!(
       event
@@ -182,8 +145,7 @@ pub fn verify_attendee_handler(ctx: Context<VerifyAttendee>) -> Result<()> {
       FoshoErrors::InvalidEventAuthority
     );
   }
-
-  attendee_record.status = AttendeeStatus::Verified;
+  attendee_record.status = AttendeeStatus::Rejected;
 
   ctx.accounts.scan_ticket()?;
   Ok(())

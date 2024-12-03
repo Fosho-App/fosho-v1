@@ -1,14 +1,27 @@
+use crate::{constant::*, error::FoshoErrors, state::*, utils::get_event_ends_at_from_attributes};
 use anchor_lang::prelude::*;
-use anchor_spl::{associated_token::AssociatedToken, token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked, transfer_checked}};
-use crate::{constant::*, error::FoshoErrors, state::*};
+use anchor_spl::{
+  associated_token::AssociatedToken,
+  token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
+};
+use mpl_core::{
+  accounts::BaseCollectionV1,
+  fetch_plugin,
+  types::{Attributes, PluginType},
+};
 
 #[derive(Accounts)]
 pub struct ClaimRewards<'info> {
   #[account(
     mut,
-    has_one = event
+    seeds = [
+      ATTENDEE_PRE_SEED.as_ref(),
+      event.key().as_ref(),
+      attendee_record.owner.as_ref()
+    ],
+    bump = attendee_record.bump,
   )]
-  pub attendee_record: Account<'info, Attendee>,
+  pub attendee_record: Box<Account<'info, Attendee>>,
   #[account(
     mut,
     seeds = [
@@ -18,7 +31,7 @@ pub struct ClaimRewards<'info> {
     ],
     bump = event.bump,
   )]
-  pub event: Account<'info, Event>,
+  pub event: Box<Account<'info, Event>>,
   #[account(
     seeds = [
       COMMUNITY_PRE_SEED.as_ref(),
@@ -45,10 +58,21 @@ pub struct ClaimRewards<'info> {
     associated_token::token_program = token_program
   )]
   pub receiver_account: Option<InterfaceAccount<'info, TokenAccount>>,
+  #[account(
+      mut,
+      seeds = [
+        EVENT_PRE_SEED.as_ref(),
+        event.key().as_ref(),
+        EVENT_COLLECTION_SUFFIX_SEED.as_ref(),
+      ],
+      bump,
+      constraint = event_collection.update_authority == community.key(),
+  )]
+  pub event_collection: Box<Account<'info, BaseCollectionV1>>,
   #[account(mut)]
   pub claimer: Signer<'info>,
   pub token_program: Interface<'info, TokenInterface>,
-  pub associated_token_program: Program<'info, AssociatedToken>
+  pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 impl<'info> ClaimRewards<'info> {
@@ -57,14 +81,14 @@ impl<'info> ClaimRewards<'info> {
       from: self.reward_account.as_ref().unwrap().to_account_info(),
       to: self.receiver_account.as_ref().unwrap().to_account_info(),
       mint: self.reward_mint.as_ref().unwrap().to_account_info(),
-      authority: self.event.to_account_info()
+      authority: self.event.to_account_info(),
     };
 
     let cpi_program = self.token_program.to_account_info();
 
     CpiContext::new(cpi_program, cpi_accounts)
   }
-  
+
   pub fn claim_commitment_fee(&self, commitment_fee: u64) -> Result<()> {
     self.event.sub_lamports(commitment_fee)?;
     self.claimer.add_lamports(commitment_fee)?;
@@ -72,28 +96,47 @@ impl<'info> ClaimRewards<'info> {
   }
 }
 
-pub fn claim_rewards_handler(
-  ctx: Context<ClaimRewards>
-) -> Result<()> {
+pub fn claim_rewards_handler(ctx: Context<ClaimRewards>) -> Result<()> {
   let attendee_record = &mut ctx.accounts.attendee_record;
   let claimer = ctx.accounts.claimer.key();
   let community = &ctx.accounts.community;
   let event = &ctx.accounts.event;
 
+  // if event has been cancelled we assume the attendee attended the event
+  // thus, they should be able to claim the reward/commitment_fee
+  // by which the community authority has decided to cancel the event.
   if event.is_cancelled {
     attendee_record.status = AttendeeStatus::Verified;
   }
 
   match attendee_record.status {
-    AttendeeStatus::Pending => { 
-      return Err(FoshoErrors::AttendeeStatusPending.into());
-    },
-    AttendeeStatus::Claimed => { 
+    AttendeeStatus::Pending => {
+      // community_authority has to be able to claim the reward/commitement_fee if the attendee did not attend the event
+      // if and only if the event ended.
+      if claimer != community.authority {
+        return Err(FoshoErrors::AttendeeStatusPending.into());
+      }
+      let (_, collection_attribute_list, _) = fetch_plugin::<BaseCollectionV1, Attributes>(
+        &ctx.accounts.event_collection.to_account_info(),
+        PluginType::Attributes,
+      )?;
+      let event_ends_at =
+        get_event_ends_at_from_attributes(&collection_attribute_list.attribute_list)?;
+
+      let current_unix_ts = Clock::get()?.unix_timestamp as u64;
+      if event_ends_at.ne(&0) {
+        require!(
+          current_unix_ts <= event_ends_at,
+          FoshoErrors::EventHasNotEnded
+        );
+      }
+    }
+    AttendeeStatus::Claimed => {
       return Err(FoshoErrors::AlreadyClaimed.into());
-    },
+    }
     AttendeeStatus::Rejected => {
       require_keys_eq!(claimer, community.authority, FoshoErrors::InvalidClaimer);
-    },
+    }
     AttendeeStatus::Verified => {
       require_keys_eq!(claimer, attendee_record.owner, FoshoErrors::InvalidClaimer);
     }
@@ -104,23 +147,23 @@ pub fn claim_rewards_handler(
   if event.reward_per_user.gt(&0) {
     let reward_mint = ctx.accounts.reward_mint.as_ref();
 
-    if 
-      ctx.accounts.reward_mint.is_none() || 
-      ctx.accounts.reward_account.is_none() ||
-      ctx.accounts.receiver_account.is_none()
+    if ctx.accounts.reward_mint.is_none()
+      || ctx.accounts.reward_account.is_none()
+      || ctx.accounts.receiver_account.is_none()
     {
       return Err(FoshoErrors::AccountNotProvided.into());
     }
 
     transfer_checked(
-      ctx.accounts.claim_reward_tokens(), 
-      event.reward_per_user, 
-      reward_mint.unwrap().decimals
+      ctx.accounts.claim_reward_tokens(),
+      event.reward_per_user,
+      reward_mint.unwrap().decimals,
     )?;
-
   }
 
-  ctx.accounts.claim_commitment_fee(event.commitment_fee)?;
-    
+  if event.commitment_fee.gt(&0) {
+    ctx.accounts.claim_commitment_fee(event.commitment_fee)?;
+  }
+
   Ok(())
 }

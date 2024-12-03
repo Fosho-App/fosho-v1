@@ -4,15 +4,23 @@
 resolution = true
 skip-lint = false
 
+#[programs.devnet]
+#fosho_program = "DQzCnhf6qTaz2tPPj6jvicntC9hP2tqDzZp1RWKujXdT"
+ 
 [programs.localnet]
-fosho_program = "DQzCnhf6qTaz2tPPj6jvicntC9hP2tqDzZp1RWKujXdT"
+fosho_program = "GZNvuxENwSG5jAsCJVLvVrhXyoF1ong3Gx98YAwKfhZe"
+
+[[test.genesis]]
+address = "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+program = "tests/programs/mpl_core.so"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
-wallet = "../../../sol/id.json"
+cluster = "localnet"
+# wallet = "../../../sol/id.json"
+wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
