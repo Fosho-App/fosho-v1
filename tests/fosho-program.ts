@@ -10,8 +10,9 @@ import {
   mplCore,
 } from "@metaplex-foundation/mpl-core";
 import { publicKey } from "@metaplex-foundation/umi";
+import timer from "timers/promises";
 
-const sleep = (ms: number) => require("timers/promises").setTimeout(ms);
+const sleep = (ms: number) => timer.setTimeout(ms);
 
 export function createKnownTestKeypair(knownKey: string) {
   try {
@@ -103,7 +104,7 @@ describe("fosho-program", () => {
 
   const event = getEvent(0);
   const attendeeRecord1 = getAttendeeRecord(event, eventAttendee1.publicKey);
-  const attendeeRecord2 = getAttendeeRecord(event, eventAttendee2.publicKey);
+
   const attendeeRecordRejected = getAttendeeRecord(
     event,
     eventAttendeeRejected.publicKey
@@ -160,6 +161,9 @@ describe("fosho-program", () => {
         senderAccount: null,
       })
       .rpc();
+    
+    console.log("Transaction", tx);
+    
     const eventData = await program.account.event.fetch(event);
     assert.strictEqual(
       eventData.commitmentFee.toNumber(),

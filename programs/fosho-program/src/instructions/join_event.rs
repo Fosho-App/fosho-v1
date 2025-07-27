@@ -185,7 +185,7 @@ impl<'info> JoinEvent<'info> {
   }
 
   pub fn validate_event_version<'a>(&self, remaining_accounts: &[AccountInfo<'a>]) -> Result<()> {
-    let mut remaining_accounts_counter = 0;
+    let remaining_account_iter = &mut remaining_accounts.iter();
 
     match &self.event.event_version {
       EventVersion::NftGated(nft_data) => {
@@ -194,12 +194,10 @@ impl<'info> JoinEvent<'info> {
         if remaining_accounts.len() < 3 {
           return Err(FoshoErrors::NotEnoughRemainingAccounts.into());
         }
-        let mint_account = &remaining_accounts[remaining_accounts_counter];
-        remaining_accounts_counter += 1;
+        let mint_account = next_account_info(remaining_account_iter)?;
         let mint_account_key = mint_account.key();
-        let ata_mint_account = &remaining_accounts[remaining_accounts_counter];
-        remaining_accounts_counter += 1;
-        let mint_metadata_account = &remaining_accounts[remaining_accounts_counter];
+        let ata_mint_account = next_account_info(remaining_account_iter)?;
+        let mint_metadata_account = next_account_info(remaining_account_iter)?;
 
         assert_is_ata(
           ata_mint_account,
@@ -227,10 +225,9 @@ impl<'info> JoinEvent<'info> {
           return Err(FoshoErrors::NotEnoughRemainingAccounts.into());
         }
 
-        let mint_account = &remaining_accounts[remaining_accounts_counter];
-        remaining_accounts_counter += 1;
+        let mint_account = next_account_info(remaining_account_iter)?;
         let mint_account_key = mint_account.key();
-        let ata_mint_account = &remaining_accounts[remaining_accounts_counter];
+        let ata_mint_account = next_account_info(remaining_account_iter)?;
 
         assert_is_ata(
           ata_mint_account,
